@@ -22,7 +22,7 @@ make darwin-arm64
 
 1. `guardrails` executes a wrapped command.
 2. It captures full `stdout` and `stderr` (buffered, not streamed).
-3. It invokes the selected checker tool (`codex` or `claude`) directly from inside `guardrails`.
+3. It invokes the selected checker tool (`codex` or `claude`) in non-interactive mode from inside `guardrails`.
 4. If verdict is `unsafe`, it exits with code `42` and does not forward wrapped output.
 5. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
 6. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
@@ -37,13 +37,15 @@ guardrails --checker codex -- gh issue list
 cat output.txt | guardrails --checker claude
 
 # Override executable path and pass provider-specific arguments
-guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json -- ls -la
+guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json --checker-arg - -- ls -la
 ```
 
 ## Exit codes
 
 - `42`: blocked due to detected prompt injection/instruction redirection
 - `43`: checker tool failure
+- `126`: wrapped command found but not executable/permission denied
+- `127`: wrapped command not found
 - otherwise: wrapped command exit code (or `--exit-code` in stdin mode)
 
 ## Checker tool protocol (v0)
@@ -52,10 +54,10 @@ guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec
 
 Default checker tool commands:
 
-- `codex` (for `--checker codex`)
-- `claude` (for `--checker claude`)
+- `codex exec "<prompt>"` (for `--checker codex`)
+- `claude -p "<prompt>"` (for `--checker claude`)
 
-Use `--checker-cmd` to override the executable path and repeated `--checker-arg` for tool-specific args.
+Use `--checker-cmd` to override the executable path and repeated `--checker-arg` for tool-specific args. When `--checker-arg` is used, `guardrails` writes the prompt to checker stdin instead of appending prompt arguments automatically.
 
 `guardrails` writes a prompt to the tool's stdin that includes this payload JSON:
 

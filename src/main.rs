@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, ErrorKind, IsTerminal, Read, Write};
 use std::process::{Command as ProcessCommand, ExitStatus, Stdio};
 
 const EXIT_PROMPT_INJECTION: i32 = 42;
@@ -17,7 +17,7 @@ struct Cli {
     #[arg(long)]
     checker_cmd: Option<String>,
 
-    /// Extra args passed to the checker executable (repeatable)
+    /// Extra args passed to the checker executable (repeatable). If provided, prompt is sent via stdin.
     #[arg(long)]
     checker_arg: Vec<String>,
 
@@ -32,7 +32,6 @@ struct Cli {
     /// Exit code to return in stdin pass-through mode when verdict is safe
     #[arg(long, default_value_t = 0)]
     exit_code: i32,
-
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -114,7 +113,7 @@ fn cmd_wrapped(
         Ok(o) => o,
         Err(e) => {
             eprintln!("error: failed to run wrapped command '{program}': {e}");
-            std::process::exit(1);
+            std::process::exit(spawn_error_code(&e));
         }
     };
 
@@ -205,19 +204,43 @@ fn invoke_checker(
 ) -> Result<Verdict, String> {
     let cmd = checker_cmd.unwrap_or_else(|| checker.default_cmd().to_string());
     let prompt = build_tool_prompt(request)?;
+    let mut args = checker_args;
+    let send_prompt_via_stdin = if args.is_empty() {
+        match checker {
+            CheckerTool::Codex => {
+                // Use headless mode by default to avoid requiring a TTY.
+                args.push("exec".to_string());
+                args.push(prompt.clone());
+            }
+            CheckerTool::Claude => {
+                // Claude CLI headless prompt mode.
+                args.push("-p".to_string());
+                args.push(prompt.clone());
+            }
+        }
+        false
+    } else {
+        true
+    };
 
     let mut child = ProcessCommand::new(&cmd)
-        .args(checker_args)
-        .stdin(Stdio::piped())
+        .args(&args)
+        .stdin(if send_prompt_via_stdin {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("unable to start checker tool '{cmd}': {e}"))?;
 
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(prompt.as_bytes())
-            .map_err(|e| format!("failed to send prompt to checker tool: {e}"))?;
+    if send_prompt_via_stdin {
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin
+                .write_all(prompt.as_bytes())
+                .map_err(|e| format!("failed to send prompt to checker tool: {e}"))?;
+        }
     }
 
     let output = child
@@ -346,6 +369,17 @@ fn write_all(mut stream: impl Write, bytes: &[u8]) {
 
 fn status_code(status: ExitStatus) -> i32 {
     status.code().unwrap_or(1)
+}
+
+fn spawn_error_code(err: &io::Error) -> i32 {
+    match err.kind() {
+        ErrorKind::NotFound => 127,
+        ErrorKind::PermissionDenied => 126,
+        _ => err
+            .raw_os_error()
+            .map(|code| if code == 0 { 1 } else { code.abs() })
+            .unwrap_or(1),
+    }
 }
 
 fn exit_with_wrapped_status(status: ExitStatus) -> ! {
