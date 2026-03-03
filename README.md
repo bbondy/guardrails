@@ -1,6 +1,6 @@
 # guardrails
 
-A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and blocks output if a checker flags prompt injection or instruction redirection.
+A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and either blocks unsafe output (`check` mode) or minimally filters unsafe content (`filter` mode).
 
 ## Build
 
@@ -18,7 +18,7 @@ make darwin-arm64
 ./dist/guardrails-darwin-arm64 --help
 ```
 
-## How it works
+## How it works (`check` mode)
 
 1. `guardrails` executes a wrapped command.
 2. It captures full `stdout` and `stderr` (buffered, not streamed).
@@ -26,6 +26,14 @@ make darwin-arm64
 4. If verdict is `unsafe`, it exits with code `42` and does not forward wrapped output.
 5. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
 6. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
+
+## How it works (`filter` subcommand)
+
+1. `guardrails filter` executes a wrapped command (or reads piped stdin).
+2. It invokes the checker and asks for sanitized output.
+3. It forwards filtered output and always forwards the wrapped command exit status (or `--exit-code` in stdin mode).
+4. If checker filtering fails, it falls back to a local minimal filter.
+5. When input is JSON, local filtering only sanitizes suspicious text in JSON string fields and always emits valid JSON.
 
 ## Commands
 
@@ -35,6 +43,12 @@ guardrails --checker codex -- gh issue list
 
 # Check arbitrary buffered text from stdin and pass it through if safe
 cat output.txt | guardrails --checker claude
+
+# Filter a wrapped command instead of blocking
+guardrails filter --checker codex -- gh issue list
+
+# Filter piped stdin and always pass through with --exit-code
+cat output.txt | guardrails filter --checker claude --exit-code 0
 
 # Override executable path and pass provider-specific arguments
 guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json --checker-arg - -- ls -la
@@ -48,6 +62,10 @@ guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec
 - `127`: wrapped command not found
 - otherwise: wrapped command exit code (or `--exit-code` in stdin mode)
 
+Notes:
+- `42` and `43` apply to `check` mode.
+- In `filter` mode, guardrails always returns the wrapped command exit code (or `--exit-code` for stdin mode), even if filtering was needed.
+
 ## Checker tool protocol (v0)
 
 `guardrails` is a single binary. It directly invokes the selected checker tool executable.
@@ -59,7 +77,7 @@ Default checker tool commands:
 
 Use `--checker-cmd` to override the executable path and repeated `--checker-arg` for tool-specific args. When `--checker-arg` is used, `guardrails` writes the prompt to checker stdin instead of appending prompt arguments automatically.
 
-`guardrails` writes a prompt to the tool's stdin that includes this payload JSON:
+`guardrails` writes a prompt to the checker that includes this payload JSON:
 
 ```json
 {
