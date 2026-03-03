@@ -11,11 +11,35 @@ cargo build --release
 ./target/release/guardrails --help
 ```
 
-Docker cross-build for macOS arm64 binary:
+Docker cross-build binaries:
 
 ```bash
+# macOS arm64 (Apple Silicon)
 make darwin-arm64
 ./dist/guardrails-darwin-arm64 --help
+
+# macOS x64 (Intel)
+make darwin-amd64
+./dist/guardrails-darwin-amd64 --help
+
+# Linux x64
+make linux-amd64
+./dist/guardrails-linux-amd64 --help
+
+# Linux arm64
+make linux-arm64
+./dist/guardrails-linux-arm64 --help
+
+# Windows x64
+make windows-amd64
+./dist/guardrails-windows-amd64.exe --help
+
+# Windows arm64
+make windows-arm64
+./dist/guardrails-windows-arm64.exe --help
+
+# Build all supported cross targets
+make all-platforms
 ```
 
 ## How it works (`check` mode)

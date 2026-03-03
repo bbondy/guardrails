@@ -10,6 +10,14 @@ COPY . .
 RUN cargo zigbuild --release --target "$TARGET" \
     --config profile.release.strip=false
 
+# Windows targets produce guardrails.exe; unix targets produce guardrails.
+RUN mkdir -p /out && \
+    if [ -f "/src/target/${TARGET}/release/guardrails.exe" ]; then \
+      cp "/src/target/${TARGET}/release/guardrails.exe" /out/guardrails; \
+    else \
+      cp "/src/target/${TARGET}/release/guardrails" /out/guardrails; \
+    fi
+
 FROM scratch
 ARG TARGET
-COPY --from=builder /src/target/${TARGET}/release/guardrails /guardrails
+COPY --from=builder /out/guardrails /guardrails
