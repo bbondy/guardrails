@@ -32,6 +32,10 @@ struct Cli {
     /// Exit code to return in stdin pass-through mode when verdict is safe
     #[arg(long, default_value_t = 0)]
     exit_code: i32,
+
+    /// Marker printed to stderr when filtering is applied in filter mode
+    #[arg(long, default_value = "<filtered/>")]
+    filter_token: String,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -115,6 +119,7 @@ fn main() {
             cli.checker_arg,
             cli.command_name,
             cli.exit_code,
+            cli.filter_token,
         );
     } else {
         cmd_wrapped(
@@ -122,6 +127,7 @@ fn main() {
             cli.checker,
             cli.checker_cmd,
             cli.checker_arg,
+            cli.filter_token,
             cli.command,
         );
     }
@@ -141,6 +147,7 @@ fn cmd_wrapped(
     checker: CheckerTool,
     checker_cmd: Option<String>,
     checker_arg: Vec<String>,
+    filter_token: String,
     wrapped: Vec<String>,
 ) {
     let program = &wrapped[0];
@@ -198,7 +205,7 @@ fn cmd_wrapped(
                     write_all(io::stdout(), filtered.stdout.as_bytes());
                     write_all(io::stderr(), filtered.stderr.as_bytes());
                     if filtered.reason.is_some() {
-                        eprintln!("<filtered/>");
+                        eprintln!("{filter_token}");
                     }
                 }
                 Err(e) => {
@@ -208,6 +215,7 @@ fn cmd_wrapped(
                     let sanitized_stderr = minimally_filter_preserve_json(&stderr_text);
                     write_all(io::stdout(), sanitized_stdout.as_bytes());
                     write_all(io::stderr(), sanitized_stderr.as_bytes());
+                    eprintln!("{filter_token}");
                 }
             }
             exit_with_wrapped_status(output.status);
@@ -222,6 +230,7 @@ fn cmd_stdin(
     checker_arg: Vec<String>,
     command_name: String,
     exit_code: i32,
+    filter_token: String,
 ) {
     let stdin = io::stdin();
     if stdin.is_terminal() {
@@ -275,7 +284,7 @@ fn cmd_stdin(
                 Ok(filtered) => {
                     write_all(io::stdout(), filtered.stdout.as_bytes());
                     if filtered.reason.is_some() {
-                        eprintln!("<filtered/>");
+                        eprintln!("{filter_token}");
                     }
                 }
                 Err(e) => {
@@ -284,6 +293,7 @@ fn cmd_stdin(
                     );
                     let sanitized_stdout = minimally_filter_preserve_json(&original_stdout);
                     write_all(io::stdout(), sanitized_stdout.as_bytes());
+                    eprintln!("{filter_token}");
                 }
             }
             std::process::exit(exit_code);

@@ -34,6 +34,7 @@ make darwin-arm64
 3. It forwards filtered output and always forwards the wrapped command exit status (or `--exit-code` in stdin mode).
 4. If checker filtering fails, it falls back to a local minimal filter.
 5. When input is JSON, local filtering only sanitizes suspicious text in JSON string fields and always emits valid JSON.
+6. When filtering is applied, it prints `<filtered/>` to stderr (customizable with `--filter-token`).
 
 ## Commands
 
@@ -49,6 +50,9 @@ guardrails filter --checker codex -- gh issue list
 
 # Filter piped stdin and always pass through with --exit-code
 cat output.txt | guardrails filter --checker claude --exit-code 0
+
+# Use a custom filter marker token
+cat output.txt | guardrails filter --checker claude --filter-token "[redacted]"
 
 # Override executable path and pass provider-specific arguments
 guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json --checker-arg - -- ls -la
