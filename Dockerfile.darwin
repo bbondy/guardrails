@@ -1,0 +1,15 @@
+ARG TARGET=aarch64-apple-darwin
+
+FROM ghcr.io/rust-cross/cargo-zigbuild AS builder
+ARG TARGET
+
+WORKDIR /src
+COPY . .
+
+# Rust's built-in strip can corrupt this target in some zigbuild flows.
+RUN cargo zigbuild --release --target "$TARGET" \
+    --config profile.release.strip=false
+
+FROM scratch
+ARG TARGET
+COPY --from=builder /src/target/${TARGET}/release/guardrails /guardrails

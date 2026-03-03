@@ -1,0 +1,15 @@
+[package]
+name = "guardrails"
+version = "0.1.0"
+edition = "2024"
+description = "Native CLI wrapper that blocks prompt-injection output from other CLIs"
+license = "MPL-2.0"
+
+[[bin]]
+name = "guardrails"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
