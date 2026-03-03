@@ -2,6 +2,8 @@ use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::io::{self, ErrorKind, IsTerminal, Read, Write};
 use std::process::{Command as ProcessCommand, ExitStatus, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const EXIT_PROMPT_INJECTION: i32 = 42;
 const EXIT_CHECKER_FAILURE: i32 = 43;
@@ -36,6 +38,10 @@ struct Cli {
     /// Marker printed to stderr when filtering is applied in filter mode
     #[arg(long, default_value = "<filtered/>")]
     filter_token: String,
+
+    /// Timeout (milliseconds) for checker tool execution
+    #[arg(long)]
+    checker_timeout_ms: Option<u64>,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -120,6 +126,7 @@ fn main() {
             cli.command_name,
             cli.exit_code,
             cli.filter_token,
+            cli.checker_timeout_ms,
         );
     } else {
         cmd_wrapped(
@@ -128,6 +135,7 @@ fn main() {
             cli.checker_cmd,
             cli.checker_arg,
             cli.filter_token,
+            cli.checker_timeout_ms,
             cli.command,
         );
     }
@@ -148,6 +156,7 @@ fn cmd_wrapped(
     checker_cmd: Option<String>,
     checker_arg: Vec<String>,
     filter_token: String,
+    checker_timeout_ms: Option<u64>,
     wrapped: Vec<String>,
 ) {
     let program = &wrapped[0];
@@ -177,26 +186,29 @@ fn cmd_wrapped(
     };
 
     match mode {
-        Mode::Check => match invoke_checker(checker, checker_cmd, checker_arg, &req) {
-            Ok(Verdict::Safe) => {
-                write_all(io::stdout(), &output.stdout);
-                write_all(io::stderr(), &output.stderr);
-                exit_with_wrapped_status(output.status);
+        Mode::Check => {
+            match invoke_checker(checker, checker_cmd, checker_arg, checker_timeout_ms, &req) {
+                Ok(Verdict::Safe) => {
+                    write_all(io::stdout(), &output.stdout);
+                    write_all(io::stderr(), &output.stderr);
+                    exit_with_wrapped_status(output.status);
+                }
+                Ok(Verdict::Unsafe(reason)) => {
+                    eprintln!("blocked: potential prompt injection detected: {reason}");
+                    std::process::exit(EXIT_PROMPT_INJECTION);
+                }
+                Err(e) => {
+                    eprintln!("error: checker failed: {e}");
+                    std::process::exit(EXIT_CHECKER_FAILURE);
+                }
             }
-            Ok(Verdict::Unsafe(reason)) => {
-                eprintln!("blocked: potential prompt injection detected: {reason}");
-                std::process::exit(EXIT_PROMPT_INJECTION);
-            }
-            Err(e) => {
-                eprintln!("error: checker failed: {e}");
-                std::process::exit(EXIT_CHECKER_FAILURE);
-            }
-        },
+        }
         Mode::Filter => {
             match invoke_filter(
                 checker,
                 checker_cmd,
                 checker_arg,
+                checker_timeout_ms,
                 &req,
                 &stdout_text,
                 &stderr_text,
@@ -231,6 +243,7 @@ fn cmd_stdin(
     command_name: String,
     exit_code: i32,
     filter_token: String,
+    checker_timeout_ms: Option<u64>,
 ) {
     let stdin = io::stdin();
     if stdin.is_terminal() {
@@ -257,26 +270,29 @@ fn cmd_stdin(
     };
 
     match mode {
-        Mode::Check => match invoke_checker(checker, checker_cmd, checker_arg, &req) {
-            Ok(Verdict::Safe) => {
-                write_all(io::stdout(), &buffered);
-                std::process::exit(exit_code);
+        Mode::Check => {
+            match invoke_checker(checker, checker_cmd, checker_arg, checker_timeout_ms, &req) {
+                Ok(Verdict::Safe) => {
+                    write_all(io::stdout(), &buffered);
+                    std::process::exit(exit_code);
+                }
+                Ok(Verdict::Unsafe(reason)) => {
+                    eprintln!("blocked: potential prompt injection detected: {reason}");
+                    std::process::exit(EXIT_PROMPT_INJECTION);
+                }
+                Err(e) => {
+                    eprintln!("error: checker failed: {e}");
+                    std::process::exit(EXIT_CHECKER_FAILURE);
+                }
             }
-            Ok(Verdict::Unsafe(reason)) => {
-                eprintln!("blocked: potential prompt injection detected: {reason}");
-                std::process::exit(EXIT_PROMPT_INJECTION);
-            }
-            Err(e) => {
-                eprintln!("error: checker failed: {e}");
-                std::process::exit(EXIT_CHECKER_FAILURE);
-            }
-        },
+        }
         Mode::Filter => {
             let original_stdout = String::from_utf8_lossy(&buffered).into_owned();
             match invoke_filter(
                 checker,
                 checker_cmd,
                 checker_arg,
+                checker_timeout_ms,
                 &req,
                 &original_stdout,
                 "",
@@ -305,10 +321,17 @@ fn invoke_checker(
     checker: CheckerTool,
     checker_cmd: Option<String>,
     checker_args: Vec<String>,
+    checker_timeout_ms: Option<u64>,
     request: &CheckRequest,
 ) -> Result<Verdict, String> {
     let prompt = build_tool_prompt(request)?;
-    let output = run_checker_prompt(checker, checker_cmd, checker_args, &prompt)?;
+    let output = run_checker_prompt(
+        checker,
+        checker_cmd,
+        checker_args,
+        checker_timeout_ms,
+        &prompt,
+    )?;
     parse_verdict(&output.stdout)
 }
 
@@ -316,12 +339,19 @@ fn invoke_filter(
     checker: CheckerTool,
     checker_cmd: Option<String>,
     checker_args: Vec<String>,
+    checker_timeout_ms: Option<u64>,
     request: &CheckRequest,
     original_stdout: &str,
     original_stderr: &str,
 ) -> Result<FilteredOutput, String> {
     let prompt = build_filter_prompt(request)?;
-    let output = run_checker_prompt(checker, checker_cmd, checker_args, &prompt)?;
+    let output = run_checker_prompt(
+        checker,
+        checker_cmd,
+        checker_args,
+        checker_timeout_ms,
+        &prompt,
+    )?;
     parse_filtered_output(&output.stdout, original_stdout, original_stderr)
 }
 
@@ -329,6 +359,7 @@ fn run_checker_prompt(
     checker: CheckerTool,
     checker_cmd: Option<String>,
     checker_args: Vec<String>,
+    checker_timeout_ms: Option<u64>,
     prompt: &str,
 ) -> Result<std::process::Output, String> {
     let cmd = checker_cmd.unwrap_or_else(|| checker.default_cmd().to_string());
@@ -371,9 +402,7 @@ fn run_checker_prompt(
         }
     }
 
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("failed to wait for checker tool: {e}"))?;
+    let output = wait_for_checker_output(child, checker_timeout_ms)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -392,6 +421,38 @@ fn run_checker_prompt(
     }
 
     Ok(output)
+}
+
+fn wait_for_checker_output(
+    mut child: std::process::Child,
+    checker_timeout_ms: Option<u64>,
+) -> Result<std::process::Output, String> {
+    match checker_timeout_ms {
+        None => child
+            .wait_with_output()
+            .map_err(|e| format!("failed to wait for checker tool: {e}")),
+        Some(timeout_ms) => {
+            let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) => {
+                        return child
+                            .wait_with_output()
+                            .map_err(|e| format!("failed to collect checker output: {e}"));
+                    }
+                    Ok(None) => {
+                        if Instant::now() >= deadline {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            return Err(format!("checker tool timed out after {}ms", timeout_ms));
+                        }
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(e) => return Err(format!("failed to wait for checker tool: {e}")),
+                }
+            }
+        }
+    }
 }
 
 fn build_tool_prompt(request: &CheckRequest) -> Result<String, String> {

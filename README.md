@@ -66,6 +66,9 @@ make all-platforms
 # Wrap another CLI command
 guardrails --checker codex -- gh issue list
 
+# Add a checker timeout (milliseconds)
+guardrails --checker codex --checker-timeout-ms 10000 -- gh issue list
+
 # Check arbitrary buffered text from stdin and pass it through if safe
 cat output.txt | guardrails --checker claude
 
