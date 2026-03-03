@@ -69,6 +69,9 @@ guardrails --checker codex -- gh issue list
 # Add a checker timeout (milliseconds)
 guardrails --checker codex --checker-timeout-ms 10000 -- gh issue list
 
+# Cap bytes sent to checker per stream (stdout/stderr)
+guardrails --checker codex --max-output-bytes 262144 -- gh issue list
+
 # Check arbitrary buffered text from stdin and pass it through if safe
 cat output.txt | guardrails --checker claude
 
