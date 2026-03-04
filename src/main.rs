@@ -19,6 +19,14 @@ fn main() {
         eprintln!("error: --streaming requires a wrapped command");
         std::process::exit(2);
     }
+    if cli.pty && cli.streaming {
+        eprintln!("error: --pty cannot be used with --streaming");
+        std::process::exit(2);
+    }
+    if cli.pty && cli.command.is_empty() {
+        eprintln!("error: --pty requires a wrapped command");
+        std::process::exit(2);
+    }
 
     runner::run(mode, cli);
 }

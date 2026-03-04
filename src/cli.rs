@@ -42,6 +42,10 @@ pub struct Cli {
     /// Stream wrapped command output directly (no buffering, no checker pass)
     #[arg(long)]
     pub streaming: bool,
+
+    /// Run wrapped command under a pseudo-terminal in buffered mode to preserve TTY-style formatting
+    #[arg(long)]
+    pub pty: bool,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]

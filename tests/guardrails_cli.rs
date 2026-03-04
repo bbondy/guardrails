@@ -90,6 +90,63 @@ fn streaming_requires_wrapped_command() {
 
 #[cfg(unix)]
 #[test]
+fn pty_requires_wrapped_command() {
+    let output = run_guardrails(&["--checker", "codex", "--pty"], None);
+    assert_eq!(status_code(&output), 2);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("requires a wrapped command"));
+}
+
+#[cfg(unix)]
+#[test]
+fn pty_cannot_be_used_with_streaming() {
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "codex",
+            "--pty",
+            "--streaming",
+            "--",
+            "echo",
+            "hi",
+        ],
+        None,
+    );
+    assert_eq!(status_code(&output), 2);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("cannot be used with --streaming"));
+}
+
+#[cfg(unix)]
+#[test]
+fn pty_mode_makes_wrapped_stdout_a_tty() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\ncat >/dev/null\nprintf '{\"verdict\":\"safe\"}\\n'\n",
+    );
+
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "codex",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--pty",
+            "--",
+            "sh",
+            "-c",
+            "if [ -t 1 ]; then printf tty; else printf notty; fi",
+        ],
+        None,
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "tty");
+}
+
+#[cfg(unix)]
+#[test]
 fn streaming_bypasses_checker_and_preserves_exit_code() {
     let output = run_guardrails(
         &[
