@@ -283,6 +283,36 @@ fn check_mode_stdin_safe_passthrough_and_exit_code() {
 
 #[cfg(unix)]
 #[test]
+fn check_mode_wrapped_command_receives_stdin() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\ncat >/dev/null\nprintf '{\"verdict\":\"safe\"}\\n'\n",
+    );
+
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "codex",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--",
+            "sh",
+            "-c",
+            "cat",
+        ],
+        Some("hello-from-stdin\n"),
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "hello-from-stdin\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn filter_mode_stdin_checker_failure_uses_fallback_and_token() {
     let checker =
         write_checker_script("#!/usr/bin/env sh\ncat >/dev/null\necho nope >&2\nexit 1\n");
@@ -307,6 +337,41 @@ fn filter_mode_stdin_checker_failure_uses_fallback_and_token() {
     assert_eq!(status_code(&output), 5);
     assert_eq!(String::from_utf8_lossy(&output.stdout), "safe\n");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("TOK"));
+}
+
+#[cfg(unix)]
+#[test]
+fn filter_mode_wrapped_command_receives_stdin() {
+    let checker =
+        write_checker_script("#!/usr/bin/env sh\ncat >/dev/null\necho nope >&2\nexit 1\n");
+
+    let output = run_guardrails(
+        &[
+            "filter",
+            "--checker",
+            "codex",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--filter-token",
+            "TOK",
+            "--",
+            "sh",
+            "-c",
+            "cat",
+        ],
+        Some("hello-from-stdin\n"),
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "hello-from-stdin\n"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("filter checker failed"));
     assert!(stderr.contains("TOK"));
 }
 

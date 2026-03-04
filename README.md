@@ -53,11 +53,12 @@ make all-platforms
 ## How it works (`check` mode)
 
 1. `guardrails` executes a wrapped command.
-2. It captures full command output (buffered, not streamed). By default it captures `stdout` and `stderr` separately; with `--pty` it captures a merged PTY stream for terminal-style formatting.
-3. It invokes the selected checker tool (`codex` or `claude`) in non-interactive mode from inside `guardrails`.
-4. If verdict is `unsafe`, it exits with code `42` and does not forward wrapped output.
-5. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
-6. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
+2. Wrapped-command stdin is forwarded to the wrapped process.
+3. It captures full command output (buffered, not streamed). By default it captures `stdout` and `stderr` separately; with `--pty` it captures a merged PTY stream for terminal-style formatting.
+4. It invokes the selected checker tool (`codex` or `claude`) in non-interactive mode from inside `guardrails`.
+5. If verdict is `unsafe`, it exits with code `42` and does not forward wrapped output.
+6. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
+7. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
 
 `--streaming` is available for wrapped commands when you need zero buffering. In streaming mode guardrails bypasses checker evaluation and forwards stdout/stderr live.
 `--pty` is available for wrapped commands in buffered mode when you need TTY-style formatting (for example `ls` columns/colors).
@@ -65,11 +66,12 @@ make all-platforms
 ## How it works (`filter` subcommand)
 
 1. `guardrails filter` executes a wrapped command (or reads piped stdin).
-2. It invokes the checker and asks for sanitized output.
-3. It forwards filtered output and always forwards the wrapped command exit status (or `--exit-code` in stdin mode).
-4. If checker filtering fails, it falls back to a local minimal filter.
-5. When input is JSON, local filtering only sanitizes suspicious text in JSON string fields and always emits valid JSON.
-6. When filtering is applied, it prints `<filtered/>` to stderr (customizable with `--filter-token`).
+2. For wrapped commands, stdin is forwarded to the wrapped process while output remains buffered for filtering.
+3. It invokes the checker and asks for sanitized output.
+4. It forwards filtered output and always forwards the wrapped command exit status (or `--exit-code` in stdin mode).
+5. If checker filtering fails, it falls back to a local minimal filter.
+6. When input is JSON, local filtering only sanitizes suspicious text in JSON string fields and always emits valid JSON.
+7. When filtering is applied, it prints `<filtered/>` to stderr (customizable with `--filter-token`).
 
 ## Commands
 

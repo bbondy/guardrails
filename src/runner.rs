@@ -266,7 +266,13 @@ fn run_wrapped_buffered(
         return run_wrapped_with_pty(program, program_args);
     }
 
-    let output = ProcessCommand::new(program).args(program_args).output()?;
+    let output = ProcessCommand::new(program)
+        .args(program_args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?
+        .wait_with_output()?;
     Ok(WrappedCapture {
         status: output.status,
         stdout: output.stdout,
@@ -305,7 +311,7 @@ fn run_wrapped_with_pty(program: &str, program_args: &[String]) -> io::Result<Wr
 
     let mut child = ProcessCommand::new(program)
         .args(program_args)
-        .stdin(Stdio::null())
+        .stdin(Stdio::inherit())
         .stdout(Stdio::from(slave_stdout))
         .stderr(Stdio::from(slave_stderr))
         .spawn()?;
