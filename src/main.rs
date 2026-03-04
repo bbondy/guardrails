@@ -46,6 +46,10 @@ struct Cli {
     /// Maximum bytes per stream (stdout/stderr) sent to checker
     #[arg(long)]
     max_output_bytes: Option<usize>,
+
+    /// Stream wrapped command output directly (no buffering, no checker pass)
+    #[arg(long)]
+    streaming: bool,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -121,6 +125,15 @@ fn main() {
     let (mode, argv) = parse_mode_and_args();
     let cli = Cli::parse_from(argv);
 
+    if cli.streaming && matches!(mode, Mode::Filter) {
+        eprintln!("error: --streaming cannot be used with filter mode");
+        std::process::exit(2);
+    }
+    if cli.streaming && cli.command.is_empty() {
+        eprintln!("error: --streaming requires a wrapped command");
+        std::process::exit(2);
+    }
+
     if cli.command.is_empty() {
         cmd_stdin(
             mode,
@@ -142,6 +155,7 @@ fn main() {
             cli.filter_token,
             cli.checker_timeout_ms,
             cli.max_output_bytes,
+            cli.streaming,
             cli.command,
         );
     }
@@ -164,10 +178,28 @@ fn cmd_wrapped(
     filter_token: String,
     checker_timeout_ms: Option<u64>,
     max_output_bytes: Option<usize>,
+    streaming: bool,
     wrapped: Vec<String>,
 ) {
     let program = &wrapped[0];
     let program_args = &wrapped[1..];
+
+    if streaming {
+        let status = match ProcessCommand::new(program)
+            .args(program_args)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+        {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("error: failed to run wrapped command '{program}': {e}");
+                std::process::exit(spawn_error_code(&e));
+            }
+        };
+        exit_with_wrapped_status(status);
+    }
 
     let output = match ProcessCommand::new(program).args(program_args).output() {
         Ok(o) => o,

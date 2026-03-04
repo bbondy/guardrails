@@ -11,6 +11,14 @@ cargo build --release
 ./target/release/guardrails --help
 ```
 
+Local development commands:
+
+```bash
+cargo build --release
+cargo fmt
+cargo test
+```
+
 Docker cross-build binaries:
 
 ```bash
@@ -51,6 +59,8 @@ make all-platforms
 5. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
 6. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
 
+`--streaming` is available for wrapped commands when you need zero buffering. In streaming mode guardrails bypasses checker evaluation and forwards stdout/stderr live.
+
 ## How it works (`filter` subcommand)
 
 1. `guardrails filter` executes a wrapped command (or reads piped stdin).
@@ -71,6 +81,9 @@ guardrails --checker codex --checker-timeout-ms 10000 -- gh issue list
 
 # Cap bytes sent to checker per stream (stdout/stderr)
 guardrails --checker codex --max-output-bytes 262144 -- gh issue list
+
+# Stream wrapped command output live (no buffering, no checker pass)
+guardrails --checker codex --streaming -- gh issue list
 
 # Check arbitrary buffered text from stdin and pass it through if safe
 cat output.txt | guardrails --checker claude
@@ -99,6 +112,7 @@ guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec
 Notes:
 - `42` and `43` apply to `check` mode.
 - In `filter` mode, guardrails always returns the wrapped command exit code (or `--exit-code` for stdin mode), even if filtering was needed.
+- `--streaming` cannot be used with `filter` mode.
 
 ## Checker tool protocol (v0)
 
