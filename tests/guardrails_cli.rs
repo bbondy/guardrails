@@ -63,7 +63,15 @@ fn status_code(output: &Output) -> i32 {
 #[test]
 fn streaming_with_filter_mode_is_rejected() {
     let output = run_guardrails(
-        &["filter", "--checker", "codex", "--streaming", "--", "echo", "hi"],
+        &[
+            "filter",
+            "--checker",
+            "codex",
+            "--streaming",
+            "--",
+            "echo",
+            "hi",
+        ],
         None,
     );
     assert_eq!(status_code(&output), 2);
@@ -219,7 +227,8 @@ fn check_mode_stdin_safe_passthrough_and_exit_code() {
 #[cfg(unix)]
 #[test]
 fn filter_mode_stdin_checker_failure_uses_fallback_and_token() {
-    let checker = write_checker_script("#!/usr/bin/env sh\ncat >/dev/null\necho nope >&2\nexit 1\n");
+    let checker =
+        write_checker_script("#!/usr/bin/env sh\ncat >/dev/null\necho nope >&2\nexit 1\n");
 
     let output = run_guardrails(
         &[
