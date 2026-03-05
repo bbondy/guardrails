@@ -19,6 +19,16 @@ cargo fmt
 cargo test
 ```
 
+## CI and Releases
+
+GitHub Actions is configured in `.github/workflows/ci.yml` to run:
+
+- `cargo fmt --all -- --check`
+- `cargo test --locked`
+- cross-build artifacts for Linux/macOS/Windows (x64 + arm64)
+
+On tags matching `v*`, the workflow publishes those artifacts to a GitHub Release.
+
 Docker cross-build binaries:
 
 ```bash
