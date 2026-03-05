@@ -319,7 +319,7 @@ fn run_wrapped_with_pty(program: &str, program_args: &[String]) -> io::Result<Wr
     drop(slave);
 
     let mut merged = Vec::new();
-    master.read_to_end(&mut merged)?;
+    read_pty_master_all(&mut master, &mut merged)?;
     let status = child.wait()?;
 
     Ok(WrappedCapture {
@@ -327,6 +327,24 @@ fn run_wrapped_with_pty(program: &str, program_args: &[String]) -> io::Result<Wr
         stdout: merged,
         stderr: Vec::new(),
     })
+}
+
+#[cfg(unix)]
+fn read_pty_master_all(master: &mut File, out: &mut Vec<u8>) -> io::Result<()> {
+    let mut buf = [0u8; 8192];
+    loop {
+        match master.read(&mut buf) {
+            Ok(0) => return Ok(()),
+            Ok(n) => out.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                // Linux PTY masters may return EIO when the slave closes; treat it as EOF.
+                if e.raw_os_error() == Some(libc::EIO) {
+                    return Ok(());
+                }
+                return Err(e);
+            }
+        }
+    }
 }
 
 #[cfg(not(unix))]
