@@ -1,7 +1,7 @@
 [package]
 name = "guardrails"
-version = "0.1.1"
-edition = "2026"
+version = "0.1.2"
+edition = "2024"
 description = "Native CLI wrapper that blocks prompt-injection output from other CLIs"
 license = "MPL-2.0"
 
