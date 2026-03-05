@@ -86,12 +86,16 @@ jobs:
           mkdir -p dist
           cp "target/${{ matrix.target }}/release/guardrails${{ matrix.ext }}" \
              "dist/${{ matrix.artifact }}${{ matrix.ext }}"
+          sha256sum "dist/${{ matrix.artifact }}${{ matrix.ext }}" \
+            > "dist/${{ matrix.artifact }}${{ matrix.ext }}.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}${{ matrix.ext }}
+          path: |
+            dist/${{ matrix.artifact }}${{ matrix.ext }}
+            dist/${{ matrix.artifact }}${{ matrix.ext }}.sha256
           if-no-files-found: error
 
   publish-release:
@@ -108,6 +112,18 @@ jobs:
           pattern: guardrails-*
           path: dist
           merge-multiple: true
+
+      - name: Build checksum manifest
+        run: |
+          cd dist
+          rm -f SHA256SUMS
+          for file in guardrails-*; do
+            case "$file" in
+              *.sha256|SHA256SUMS) continue ;;
+            esac
+            [ -f "$file" ] || continue
+            sha256sum "$file" >> SHA256SUMS
+          done
 
       - name: Create GitHub release with assets
         uses: softprops/action-gh-release@v2
