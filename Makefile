@@ -1,8 +1,30 @@
 BINARY = guardrails
+RELEASE_VERSION = $(shell sed -nE 's/^version[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' Cargo.toml | head -n 1)
+RELEASE_TAG = v$(RELEASE_VERSION)
 
 .PHONY: build
 build:
 	cargo build --release
+
+.PHONY: release
+release:
+	@if [ -z "$(RELEASE_VERSION)" ]; then \
+		echo "error: unable to read release version from Cargo.toml"; \
+		exit 1; \
+	fi
+	@if ! git diff --quiet || ! git diff --cached --quiet; then \
+		echo "error: working tree must be clean before release"; \
+		exit 1; \
+	fi
+	@if git rev-parse -q --verify "refs/tags/$(RELEASE_TAG)" >/dev/null; then \
+		echo "error: tag $(RELEASE_TAG) already exists"; \
+		exit 1; \
+	fi
+	git tag "$(RELEASE_TAG)"
+	git push origin "$(RELEASE_TAG)"
+	@echo "pushed tag $(RELEASE_TAG)"
+	@echo "GitHub Actions will publish release binaries and checksum files."
+	@echo "watch with: gh run watch --repo bbondy/guardrails"
 
 .PHONY: darwin-arm64
 darwin-arm64:

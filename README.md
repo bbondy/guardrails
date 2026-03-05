@@ -26,8 +26,18 @@ GitHub Actions is configured in `.github/workflows/ci.yml` to run:
 - `cargo fmt --all -- --check`
 - `cargo test --locked`
 - cross-build artifacts for Linux/macOS/Windows (x64 + arm64)
+- SHA256 files for each built binary and a combined `SHA256SUMS` manifest
 
 On tags matching `v*`, the workflow publishes those artifacts to a GitHub Release.
+
+Create a release by pushing a version tag:
+
+```bash
+make release VERSION=v0.3.0
+```
+
+This target validates version format, requires a clean working tree, creates the tag, and pushes it.
+The release workflow then publishes binaries and checksum files.
 
 Docker cross-build binaries:
 
