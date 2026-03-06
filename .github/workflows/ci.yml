@@ -104,7 +104,7 @@ jobs:
   publish-release:
     name: Publish Release Assets
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     needs: cross-build
     permissions:
       contents: write
@@ -116,19 +116,103 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Validate Apple signing secrets
+        env:
+          APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$APPLE_CERT_P12" ] || missing+=("APPLE_CERT_P12")
+          [ -n "$APPLE_CERT_PASSWORD" ] || missing+=("APPLE_CERT_PASSWORD")
+          [ -n "$APPLE_ID" ] || missing+=("APPLE_ID")
+          [ -n "$APPLE_TEAM_ID" ] || missing+=("APPLE_TEAM_ID")
+          [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] || missing+=("APPLE_APP_SPECIFIC_PASSWORD")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing required GitHub secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Import Apple signing certificate
+        env:
+          APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/signing_cert.p12"
+          echo "$APPLE_CERT_P12" | base64 -D > "$CERT_PATH"
+
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security import "$CERT_PATH" -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
+
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F '"' '/Developer ID Application/ {print $2; exit}')"
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::Developer ID Application identity not found in imported certificate."
+            exit 1
+          fi
+
+          echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Sign macOS binaries
+        run: |
+          set -euo pipefail
+          for bin in dist/guardrails-darwin-amd64 dist/guardrails-darwin-arm64; do
+            chmod +x "$bin"
+            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$bin"
+            codesign --verify --verbose=2 "$bin"
+          done
+
+      - name: Prepare notarization bundles
+        run: |
+          set -euo pipefail
+          rm -f dist/guardrails-darwin-amd64.zip dist/guardrails-darwin-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent dist/guardrails-darwin-amd64 dist/guardrails-darwin-amd64.zip
+          ditto -c -k --sequesterRsrc --keepParent dist/guardrails-darwin-arm64 dist/guardrails-darwin-arm64.zip
+
+      - name: Notarize macOS archives
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for zip_file in dist/guardrails-darwin-amd64.zip dist/guardrails-darwin-arm64.zip; do
+            xcrun notarytool submit "$zip_file" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --wait
+          done
+
       - name: Build checksum manifest
         run: |
+          set -euo pipefail
           cd dist
-          rm -f SHA256SUMS
+          rm -f ./*.sha256 SHA256SUMS
           for file in guardrails-*; do
-            case "$file" in
-              *.sha256|SHA256SUMS) continue ;;
-            esac
             [ -f "$file" ] || continue
-            sha256sum "$file" >> SHA256SUMS
+            shasum -a 256 "$file" | awk '{print $1}' > "$file.sha256"
+            shasum -a 256 "$file" >> SHA256SUMS
           done
 
       - name: Create GitHub release with assets
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+
+      - name: Cleanup signing keychain
+        if: always()
+        run: |
+          if [ -n "${SIGNING_KEYCHAIN:-}" ] && [ -f "$SIGNING_KEYCHAIN" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN"
+          fi
