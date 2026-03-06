@@ -6,6 +6,10 @@ RELEASE_TAG = v$(RELEASE_VERSION)
 build:
 	cargo build --release
 
+.PHONY: demo
+demo: build
+	GUARDRAILS_BIN=./target/release/guardrails ./examples/run-gh-api-canary-demo.sh
+
 .PHONY: release
 release:
 	@if [ -z "$(RELEASE_VERSION)" ]; then \
