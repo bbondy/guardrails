@@ -94,7 +94,7 @@ make all-platforms
 6. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
 7. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
 
-`--streaming` is available for wrapped commands when you need zero buffering. In streaming mode guardrails bypasses checker evaluation and forwards stdout/stderr live.
+`--streaming` is available for wrapped commands when you need zero buffering. In streaming mode guardrails bypasses checker evaluation but applies a local detector and exits `42` on instruction-like output.
 `--pty` is available for wrapped commands in buffered mode when you need TTY-style formatting (for example `ls` columns/colors).
 
 ## How it works (`filter` subcommand)
@@ -119,7 +119,7 @@ guardrails --checker codex --checker-timeout-ms 10000 -- gh issue list
 # Cap bytes sent to checker per stream (stdout/stderr)
 guardrails --checker codex --max-output-bytes 262144 -- gh issue list
 
-# Stream wrapped command output live (no buffering, no checker pass)
+# Stream wrapped command output live (no buffering, no checker pass, local detector enabled)
 guardrails --checker codex --streaming -- gh issue list
 
 # Preserve TTY formatting while still buffering + checking output

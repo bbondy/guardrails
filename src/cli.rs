@@ -39,7 +39,7 @@ pub struct Cli {
     #[arg(long)]
     pub max_output_bytes: Option<usize>,
 
-    /// Stream wrapped command output directly (no buffering, no checker pass)
+    /// Stream wrapped command output directly (no checker pass; local detector still applies)
     #[arg(long)]
     pub streaming: bool,
 
