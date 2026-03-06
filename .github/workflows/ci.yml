@@ -67,6 +67,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Rust target
+        run: rustup target add "${{ matrix.target }}"
+
       - name: Setup Zig
         uses: mlugg/setup-zig@v1
         with:
