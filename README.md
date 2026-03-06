@@ -141,6 +141,23 @@ cat output.txt | guardrails filter --checker claude --filter-token "[redacted]"
 guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json --checker-arg - -- ls -la
 ```
 
+## Live GH API safety demo
+
+This repo includes a defensive canary file with instruction-like text so you can verify blocking behavior end-to-end with the GitHub API.
+
+```bash
+# Run the built-in demo helper (expects guardrails + gh to be installed)
+./examples/run-gh-api-canary-demo.sh
+
+# Or run directly
+guardrails --checker codex -- \
+  gh api repos/bbondy/guardrails/contents/examples/gh-api-safety-canary.txt \
+  -H "Accept: application/vnd.github.raw"
+echo $?
+```
+
+Expected result: guardrails prints a blocked prompt-injection message and exits `42`.
+
 ## Exit codes
 
 - `42`: blocked due to detected prompt injection/instruction redirection
