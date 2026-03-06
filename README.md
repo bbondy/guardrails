@@ -33,10 +33,12 @@ On tags matching `v*`, the workflow publishes those artifacts to a GitHub Releas
 Create a release by pushing a version tag:
 
 ```bash
-make release VERSION=v0.3.0
+make release
 ```
 
-This target validates version format, requires a clean working tree, creates the tag, and pushes it.
+`make release` reads `version` from `Cargo.toml`, creates tag `v<version>`, and pushes it.
+It requires a clean working tree and fails if the tag already exists.
+It does not edit or commit `Cargo.toml`.
 The release workflow then publishes binaries and checksum files.
 
 Docker cross-build binaries:
