@@ -2,6 +2,18 @@
 
 A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and either blocks unsafe output (`check` mode) or minimally filters unsafe content (`filter` mode).
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bbondy/guardrails/main/install.sh | sh
+```
+
+Optional install directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bbondy/guardrails/main/install.sh | INSTALL_DIR="$HOME/.local/bin" sh
+```
+
 ## Build
 
 Local (requires Rust toolchain):
