@@ -146,7 +146,7 @@ guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec
 This repo includes a defensive canary file with instruction-like text so you can verify blocking behavior end-to-end with the GitHub API.
 
 ```bash
-# Run the built-in demo helper (expects guardrails + gh to be installed)
+# Run the built-in demo helper (shows both safe + canary files; expects guardrails + gh)
 ./examples/run-gh-api-canary-demo.sh
 
 # Or run directly
