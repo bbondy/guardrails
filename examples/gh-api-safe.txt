@@ -1,0 +1,10 @@
+Guardrails safe sample
+======================
+
+This is normal informational text.
+It does not contain instruction redirection or policy override language.
+
+Release notes summary:
+- Added checksum verification for artifacts.
+- Improved cross-platform build coverage.
+- Documented signing and notarization setup.

@@ -158,6 +158,17 @@ echo $?
 
 Expected result: guardrails prints a blocked prompt-injection message and exits `42`.
 
+Safe comparison example:
+
+```bash
+guardrails --checker codex -- \
+  gh api repos/bbondy/guardrails/contents/examples/gh-api-safe.txt \
+  -H "Accept: application/vnd.github.raw"
+echo $?
+```
+
+Expected result: safe text is printed and exit code is `0`.
+
 ## Exit codes
 
 - `42`: blocked due to detected prompt injection/instruction redirection
