@@ -75,6 +75,14 @@ It requires a clean working tree and fails if the tag already exists.
 It does not edit or commit `Cargo.toml`.
 The release workflow then publishes binaries/checksums and updates/publishes the npm package with the same tag version.
 
+For local npm publishing (outside GitHub Actions):
+
+```bash
+make publish
+```
+
+`make publish` requires `NPM_TOKEN` in your environment (for example via `direnv`) and publishes `@brianbondy/guardrails` using the current `Cargo.toml` version.
+
 Docker cross-build binaries:
 
 ```bash

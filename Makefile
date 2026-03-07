@@ -27,8 +27,43 @@ release:
 	git tag "$(RELEASE_TAG)"
 	git push origin "$(RELEASE_TAG)"
 	@echo "pushed tag $(RELEASE_TAG)"
-	@echo "GitHub Actions will publish release binaries and checksum files."
+	@echo "GitHub Actions will publish release binaries/checksums and the npm package."
 	@echo "watch with: gh run watch --repo bbondy/guardrails"
+
+.PHONY: publish
+publish:
+	@if ! command -v npm >/dev/null 2>&1; then \
+		echo "error: npm is required"; \
+		exit 1; \
+	fi
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo "error: node is required"; \
+		exit 1; \
+	fi
+	@if [ -z "$$NPM_TOKEN" ]; then \
+		echo "error: NPM_TOKEN is required (export it in your shell, e.g. via direnv)"; \
+		exit 1; \
+	fi
+	@set -eu; \
+	version="$(RELEASE_VERSION)"; \
+	if [ -z "$$version" ]; then \
+		echo "error: unable to read package version from Cargo.toml"; \
+		exit 1; \
+	fi; \
+	tmpdir="$$(mktemp -d)"; \
+	cleanup() { rm -rf "$$tmpdir"; }; \
+	trap cleanup EXIT; \
+	cp package.json README.md "$$tmpdir"/; \
+	cp -R npm "$$tmpdir"/npm; \
+	PACKAGE_JSON_PATH="$$tmpdir/package.json" PACKAGE_VERSION="$$version" node -e '\
+const fs = require("node:fs"); \
+const p = process.env.PACKAGE_JSON_PATH; \
+const v = process.env.PACKAGE_VERSION; \
+const pkg = JSON.parse(fs.readFileSync(p, "utf8")); \
+pkg.version = v; \
+fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\\n");'; \
+	( cd "$$tmpdir" && NODE_AUTH_TOKEN="$$NPM_TOKEN" npm publish --access public ); \
+	echo "published @brianbondy/guardrails@$$version"
 
 .PHONY: darwin-arm64
 darwin-arm64:
