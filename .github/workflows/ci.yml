@@ -109,6 +109,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -209,6 +212,38 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Validate npm token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "::error::Missing required GitHub secret: NPM_TOKEN"
+            exit 1
+          fi
+
+      - name: Sync npm package version to release tag
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version --no-git-tag-version --allow-same-version "${VERSION}"
+          ACTUAL_VERSION="$(node -p "require('./package.json').version")"
+          if [ "${ACTUAL_VERSION}" != "${VERSION}" ]; then
+            echo "::error::package.json version (${ACTUAL_VERSION}) does not match tag version (${VERSION})"
+            exit 1
+          fi
+
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
       - name: Cleanup signing keychain
         if: always()

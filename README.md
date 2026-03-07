@@ -8,6 +8,14 @@ A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and eit
 
 ## Install
 
+Via npmjs:
+
+```bash
+npm install -g @brianbondy/guardrails
+```
+
+Via install script:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bbondy/guardrails/main/install.sh | sh
 ```
@@ -45,6 +53,16 @@ GitHub Actions is configured in `.github/workflows/ci.yml` to run:
 - SHA256 files for each built binary and a combined `SHA256SUMS` manifest
 
 On tags matching `v*`, the workflow publishes those artifacts to a GitHub Release.
+On tag releases, it also publishes `@brianbondy/guardrails` to npmjs.com.
+
+Required GitHub secrets for release publishing:
+
+- `APPLE_CERT_P12`
+- `APPLE_CERT_PASSWORD`
+- `APPLE_ID`
+- `APPLE_TEAM_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD`
+- `NPM_TOKEN` (npm automation token with publish permission for `@brianbondy`)
 
 Create a release by pushing a version tag:
 
@@ -55,7 +73,7 @@ make release
 `make release` reads `version` from `Cargo.toml`, creates tag `v<version>`, and pushes it.
 It requires a clean working tree and fails if the tag already exists.
 It does not edit or commit `Cargo.toml`.
-The release workflow then publishes binaries and checksum files.
+The release workflow then publishes binaries/checksums and updates/publishes the npm package with the same tag version.
 
 Docker cross-build binaries:
 
