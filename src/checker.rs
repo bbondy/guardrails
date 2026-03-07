@@ -106,7 +106,8 @@ fn run_checker_prompt(
         true
     };
 
-    let mut child = ProcessCommand::new(&cmd)
+    let mut command = ProcessCommand::new(&cmd);
+    command
         .args(&args)
         .stdin(if send_prompt_via_stdin {
             Stdio::piped()
@@ -114,7 +115,12 @@ fn run_checker_prompt(
             Stdio::null()
         })
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    if matches!(checker, CheckerTool::Claude) {
+        command.env_remove("CLAUDECODE");
+    }
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("unable to start checker tool '{cmd}': {e}"))?;
 

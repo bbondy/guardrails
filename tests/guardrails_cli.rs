@@ -8,6 +8,10 @@ fn bin_path() -> &'static str {
 }
 
 fn run_guardrails(args: &[&str], stdin: Option<&str>) -> Output {
+    run_guardrails_with_env(args, stdin, &[])
+}
+
+fn run_guardrails_with_env(args: &[&str], stdin: Option<&str>, envs: &[(&str, &str)]) -> Output {
     let mut cmd = Command::new(bin_path());
     cmd.args(args)
         .stdout(Stdio::piped())
@@ -17,6 +21,9 @@ fn run_guardrails(args: &[&str], stdin: Option<&str>) -> Output {
         } else {
             Stdio::null()
         });
+    for (key, value) in envs {
+        cmd.env(key, value);
+    }
 
     let mut child = cmd.spawn().expect("failed to spawn guardrails");
 
@@ -425,6 +432,33 @@ fn max_output_bytes_truncation_marker_reaches_checker() {
 
     assert_eq!(status_code(&output), 0);
     assert_eq!(String::from_utf8_lossy(&output.stdout), "abcdefgh");
+}
+
+#[cfg(unix)]
+#[test]
+fn claude_checker_unsets_claudecode_env() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\ncat >/dev/null\nif [ -n \"$CLAUDECODE\" ]; then\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"CLAUDECODE set\"}\\n'\nelse\n  printf '{\"verdict\":\"safe\"}\\n'\nfi\n",
+    );
+
+    let output = run_guardrails_with_env(
+        &[
+            "--checker",
+            "claude",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+        &[("CLAUDECODE", "1")],
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
 }
 
 #[test]
