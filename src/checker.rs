@@ -14,6 +14,10 @@ pub struct CheckRequest {
     pub task: String,
     pub output: OutputEnvelope,
     pub instructions: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub context: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub permissions: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]

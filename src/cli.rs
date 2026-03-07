@@ -15,6 +15,14 @@ pub struct Cli {
     #[arg(long)]
     pub checker_arg: Vec<String>,
 
+    /// Extra context passed to the checker prompt payload (repeatable)
+    #[arg(long)]
+    pub checker_context: Vec<String>,
+
+    /// Permission hints passed to the checker prompt payload (repeatable)
+    #[arg(long)]
+    pub checker_permission: Vec<String>,
+
     /// Wrapped command and arguments. Example: -- gh issue list
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub command: Vec<String>,

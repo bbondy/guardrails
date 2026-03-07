@@ -436,6 +436,38 @@ fn max_output_bytes_truncation_marker_reaches_checker() {
 
 #[cfg(unix)]
 #[test]
+fn checker_context_and_permissions_reach_payload_with_system_instructions() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\npayload=\"$(cat)\"\nif printf '%s' \"$payload\" | grep -q 'Return strict JSON only' \\\n  && printf '%s' \"$payload\" | grep -q 'repo has internal-only canary docs' \\\n  && printf '%s' \"$payload\" | grep -q 'do-not-exfiltrate' \\\n  && printf '%s' \"$payload\" | grep -q 'workspace-write'; then\n  printf '{\"verdict\":\"safe\"}\\n'\nelse\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"missing payload fields\"}\\n'\nfi\n",
+    );
+
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "codex",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--checker-context",
+            "repo has internal-only canary docs",
+            "--checker-context",
+            "do-not-exfiltrate",
+            "--checker-permission",
+            "workspace-write",
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+}
+
+#[cfg(unix)]
+#[test]
 fn gemini_checker_uses_headless_prompt_arg_by_default() {
     let checker = write_checker_script(
         "#!/usr/bin/env sh\nif [ \"$1\" = \"-p\" ] && [ -n \"$2\" ] && [ -z \"${3:-}\" ]; then\n  printf '{\"verdict\":\"safe\"}\\n'\nelse\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"bad-gemini-args\"}\\n'\nfi\n",

@@ -36,6 +36,8 @@ pub fn run(mode: Mode, cli: Cli) {
         checker,
         checker_cmd,
         checker_arg,
+        checker_context,
+        checker_permission,
         command,
         command_name,
         exit_code,
@@ -52,6 +54,8 @@ pub fn run(mode: Mode, cli: Cli) {
             checker,
             checker_cmd,
             checker_arg,
+            checker_context,
+            checker_permission,
             command_name,
             exit_code,
             filter_token,
@@ -64,6 +68,8 @@ pub fn run(mode: Mode, cli: Cli) {
             checker,
             checker_cmd,
             checker_arg,
+            checker_context,
+            checker_permission,
             filter_token,
             checker_timeout_ms,
             max_output_bytes,
@@ -79,6 +85,8 @@ fn cmd_wrapped(
     checker: crate::cli::CheckerTool,
     checker_cmd: Option<String>,
     checker_arg: Vec<String>,
+    checker_context: Vec<String>,
+    checker_permission: Vec<String>,
     filter_token: String,
     checker_timeout_ms: Option<u64>,
     max_output_bytes: Option<usize>,
@@ -135,6 +143,8 @@ fn cmd_wrapped(
             stderr: clamp_output_for_checker(&output.stderr, max_output_bytes),
         },
         instructions: CHECK_INSTRUCTIONS.to_string(),
+        context: checker_context,
+        permissions: checker_permission,
     };
 
     match mode {
@@ -192,6 +202,8 @@ fn cmd_stdin(
     checker: crate::cli::CheckerTool,
     checker_cmd: Option<String>,
     checker_arg: Vec<String>,
+    checker_context: Vec<String>,
+    checker_permission: Vec<String>,
     command_name: String,
     exit_code: i32,
     filter_token: String,
@@ -220,6 +232,8 @@ fn cmd_stdin(
             stderr: String::new(),
         },
         instructions: CHECK_INSTRUCTIONS.to_string(),
+        context: checker_context,
+        permissions: checker_permission,
     };
 
     match mode {
