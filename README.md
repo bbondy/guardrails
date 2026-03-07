@@ -1,6 +1,16 @@
 # guardrails
 
+![guardrails logo](assets/icons/guardrails-square.png)
+
 A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and either blocks unsafe output (`check` mode) or minimally filters unsafe content (`filter` mode).
+
+## Branding Assets
+
+- Original logo: `guardrails.jpeg`
+- Square master icon: `assets/icons/guardrails-master-1024.png`
+- macOS icon: `assets/icons/guardrails.icns`
+- Windows icon: `assets/icons/guardrails.ico`
+- Additional PNG sizes: `assets/icons/png/`
 
 ## Install
 
