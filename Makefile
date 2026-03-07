@@ -30,6 +30,44 @@ release:
 	@echo "GitHub Actions will publish release binaries/checksums and the npm package."
 	@echo "watch with: gh run watch --repo bbondy/guardrails"
 
+.PHONY: bump-version
+bump-version:
+	@if [ -z "$(BUMP)" ]; then \
+		echo "error: BUMP is required (bugfix, minor, or major)"; \
+		exit 1; \
+	fi
+	@if [ "$(BUMP)" != "bugfix" ] && [ "$(BUMP)" != "minor" ] && [ "$(BUMP)" != "major" ]; then \
+		echo "error: BUMP must be one of: bugfix, minor, major"; \
+		exit 1; \
+	fi
+	@set -eu; \
+	current="$(RELEASE_VERSION)"; \
+	if [ -z "$$current" ]; then \
+		echo "error: unable to read version from Cargo.toml"; \
+		exit 1; \
+	fi; \
+	major="$${current%%.*}"; \
+	rest="$${current#*.}"; \
+	minor="$${rest%%.*}"; \
+	patch="$${rest#*.}"; \
+	case "$(BUMP)" in \
+		bugfix) patch="$$((patch + 1))" ;; \
+		minor) minor="$$((minor + 1))"; patch=0 ;; \
+		major) major="$$((major + 1))"; minor=0; patch=0 ;; \
+	esac; \
+	next="$$major.$$minor.$$patch"; \
+	awk -v v="$$next" '\
+		BEGIN { done = 0 } \
+		!done && $$0 ~ /^version[[:space:]]*=[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"/ { \
+			print "version = \"" v "\""; \
+			done = 1; \
+			next; \
+		} \
+		{ print }' Cargo.toml > Cargo.toml.tmp; \
+	mv Cargo.toml.tmp Cargo.toml; \
+	cargo generate-lockfile >/dev/null; \
+	echo "bumped version: $$current -> $$next"
+
 .PHONY: publish
 publish:
 	@if ! command -v npm >/dev/null 2>&1; then \

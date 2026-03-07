@@ -75,6 +75,16 @@ It requires a clean working tree and fails if the tag already exists.
 It does not edit or commit `Cargo.toml`.
 The release workflow then publishes binaries/checksums and updates/publishes the npm package with the same tag version.
 
+To bump project version before releasing:
+
+```bash
+make bump-version BUMP=bugfix   # patch bump (x.y.z -> x.y.z+1)
+make bump-version BUMP=minor    # minor bump (x.y.z -> x.y+1.0)
+make bump-version BUMP=major    # major bump (x.y.z -> x+1.0.0)
+```
+
+This updates `Cargo.toml` and regenerates `Cargo.lock`. It does not commit or tag automatically.
+
 For local npm publishing (outside GitHub Actions):
 
 ```bash
