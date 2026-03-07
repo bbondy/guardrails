@@ -1,17 +1,10 @@
 # guardrails
 
-![guardrails logo](assets/icons/guardrails-square.png)
+[![CI](https://github.com/bbondy/guardrails/actions/workflows/ci.yml/badge.svg)](https://github.com/bbondy/guardrails/actions/workflows/ci.yml)
+
+<img src="assets/icons/png/guardrails-256.png" alt="guardrails logo" width="180" />
 
 A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and either blocks unsafe output (`check` mode) or minimally filters unsafe content (`filter` mode).
-
-## Branding Assets
-
-- Original logo: `guardrails.jpeg`
-- Square master icon: `assets/icons/guardrails-master-1024.png`
-- macOS icon: `assets/icons/guardrails.icns`
-- Windows icon: `assets/icons/guardrails.ico`
-- Additional PNG sizes: `assets/icons/png/`
-- Windows binaries embed `assets/icons/guardrails.ico` at build time via `build.rs`.
 
 ## Install
 
