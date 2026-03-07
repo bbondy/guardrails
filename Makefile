@@ -66,7 +66,19 @@ bump-version:
 		{ print }' Cargo.toml > Cargo.toml.tmp; \
 	mv Cargo.toml.tmp Cargo.toml; \
 	cargo generate-lockfile >/dev/null; \
-	echo "bumped version: $$current -> $$next"
+	if [ -f package.json ]; then \
+		if ! command -v npm >/dev/null 2>&1; then \
+			echo "error: npm is required to update package.json/package-lock.json"; \
+			exit 1; \
+		fi; \
+		if ! command -v node >/dev/null 2>&1; then \
+			echo "error: node is required to update package.json/package-lock.json"; \
+			exit 1; \
+		fi; \
+		npm version --no-git-tag-version --allow-same-version "$$next" >/dev/null; \
+		npm install --package-lock-only --ignore-scripts >/dev/null; \
+	fi; \
+	echo "bumped version: $$current -> $$next (Cargo.toml/Cargo.lock + package.json/package-lock.json)"
 
 .PHONY: publish
 publish:

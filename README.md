@@ -83,7 +83,7 @@ make bump-version BUMP=minor    # minor bump (x.y.z -> x.y+1.0)
 make bump-version BUMP=major    # major bump (x.y.z -> x+1.0.0)
 ```
 
-This updates `Cargo.toml` and regenerates `Cargo.lock`. It does not commit or tag automatically.
+This updates `Cargo.toml`, `Cargo.lock`, `package.json`, and `package-lock.json`. It does not commit or tag automatically.
 
 For local npm publishing (outside GitHub Actions):
 
