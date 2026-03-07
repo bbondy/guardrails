@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::io::Write;
+use std::io::{Error as IoError, ErrorKind};
 use std::process::{Command as ProcessCommand, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -86,6 +87,7 @@ fn run_checker_prompt(
     checker_timeout_ms: Option<u64>,
     prompt: &str,
 ) -> Result<std::process::Output, String> {
+    let checker_cmd_explicit = checker_cmd.is_some();
     let cmd = checker_cmd.unwrap_or_else(|| checker.default_cmd().to_string());
     let mut args = checker_args;
     let send_prompt_via_stdin = if args.is_empty() {
@@ -100,29 +102,67 @@ fn run_checker_prompt(
                 args.push("-p".to_string());
                 args.push(prompt.to_string());
             }
+            CheckerTool::Gemini => {
+                // Gemini CLI non-interactive mode.
+                args.push("-p".to_string());
+                args.push(prompt.to_string());
+            }
+            CheckerTool::Agent => {
+                // Cursor Agent non-interactive mode.
+                args.push("-p".to_string());
+                args.push(prompt.to_string());
+            }
         }
         false
     } else {
         true
     };
 
-    let mut command = ProcessCommand::new(&cmd);
-    command
-        .args(&args)
-        .stdin(if send_prompt_via_stdin {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    if matches!(checker, CheckerTool::Claude) {
-        command.env_remove("CLAUDECODE");
+    let mut attempted_cmds = vec![cmd.clone()];
+    if !checker_cmd_explicit {
+        attempted_cmds.extend(
+            checker
+                .fallback_cmds()
+                .iter()
+                .map(|candidate| candidate.to_string()),
+        );
     }
 
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("unable to start checker tool '{cmd}': {e}"))?;
+    let mut child: Option<std::process::Child> = None;
+    let mut last_not_found: Option<IoError> = None;
+
+    for candidate in &attempted_cmds {
+        match spawn_checker_process(candidate, &args, send_prompt_via_stdin, checker) {
+            Ok(process) => {
+                child = Some(process);
+                break;
+            }
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                last_not_found = Some(e);
+            }
+            Err(e) => {
+                return Err(format!("unable to start checker tool '{candidate}': {e}"));
+            }
+        }
+    }
+
+    let mut child = child.ok_or_else(|| {
+        let err = last_not_found
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "command not found".to_string());
+        if attempted_cmds.len() == 1 {
+            format!(
+                "unable to start checker tool '{}': {}",
+                attempted_cmds[0], err
+            )
+        } else {
+            format!(
+                "unable to start checker tool (tried: {}): {}",
+                attempted_cmds.join(", "),
+                err
+            )
+        }
+    })?;
 
     if send_prompt_via_stdin {
         if let Some(mut stdin) = child.stdin.take() {
@@ -151,6 +191,45 @@ fn run_checker_prompt(
     }
 
     Ok(output)
+}
+
+fn spawn_checker_process(
+    cmd: &str,
+    args: &[String],
+    send_prompt_via_stdin: bool,
+    checker: CheckerTool,
+) -> Result<std::process::Child, IoError> {
+    let mut command = ProcessCommand::new(cmd);
+    command
+        .args(args)
+        .stdin(if send_prompt_via_stdin {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    match checker {
+        CheckerTool::Claude => {
+            command.env_remove("CLAUDECODE");
+        }
+        CheckerTool::Gemini => {
+            command.env_remove("GEMINI_CLI_NO_RELAUNCH");
+            command.env_remove("GEMINI_SANDBOX");
+        }
+        CheckerTool::Agent => {
+            command.env_remove("CURSOR_CLI");
+            command.env_remove("CURSOR_INVOKED_AS");
+            command.env_remove("AGENT_CLI_EXIT_ON_COMPLETION");
+            command.env_remove("AGENT_CLI_HIDE_HEADER");
+            command.env_remove("AGENT_CLI_HIDE_PROMPT_BAR");
+            command.env_remove("AGENT_CLI_HIDE_USER_MESSAGES");
+            command.env_remove("AGENT_CLI_HIDE_BANNER");
+            command.env_remove("AGENT_CLI_LOAD_HISTORY");
+        }
+        CheckerTool::Codex => {}
+    }
+    command.spawn()
 }
 
 fn wait_for_checker_output(

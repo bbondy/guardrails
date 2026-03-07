@@ -436,6 +436,80 @@ fn max_output_bytes_truncation_marker_reaches_checker() {
 
 #[cfg(unix)]
 #[test]
+fn gemini_checker_uses_headless_prompt_arg_by_default() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\nif [ \"$1\" = \"-p\" ] && [ -n \"$2\" ] && [ -z \"${3:-}\" ]; then\n  printf '{\"verdict\":\"safe\"}\\n'\nelse\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"bad-gemini-args\"}\\n'\nfi\n",
+    );
+
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "gemini",
+            "--checker-cmd",
+            &checker,
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn agent_checker_uses_headless_print_arg_by_default() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\nif [ \"$1\" = \"-p\" ] && [ -n \"$2\" ] && [ -z \"${3:-}\" ]; then\n  printf '{\"verdict\":\"safe\"}\\n'\nelse\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"bad-agent-args\"}\\n'\nfi\n",
+    );
+
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "agent",
+            "--checker-cmd",
+            &checker,
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn cursor_agent_checker_alias_is_accepted() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\ncat >/dev/null\nprintf '{\"verdict\":\"safe\"}\\n'\n",
+    );
+
+    let output = run_guardrails(
+        &[
+            "--checker",
+            "cursor-agent",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+}
+
+#[cfg(unix)]
+#[test]
 fn claude_checker_unsets_claudecode_env() {
     let checker = write_checker_script(
         "#!/usr/bin/env sh\ncat >/dev/null\nif [ -n \"$CLAUDECODE\" ]; then\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"CLAUDECODE set\"}\\n'\nelse\n  printf '{\"verdict\":\"safe\"}\\n'\nfi\n",
@@ -455,6 +529,67 @@ fn claude_checker_unsets_claudecode_env() {
         ],
         None,
         &[("CLAUDECODE", "1")],
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn gemini_checker_unsets_gemini_relaunch_and_sandbox_env() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\ncat >/dev/null\nif [ -n \"$GEMINI_CLI_NO_RELAUNCH\" ] || [ -n \"$GEMINI_SANDBOX\" ]; then\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"gemini env leaked\"}\\n'\nelse\n  printf '{\"verdict\":\"safe\"}\\n'\nfi\n",
+    );
+
+    let output = run_guardrails_with_env(
+        &[
+            "--checker",
+            "gemini",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+        &[
+            ("GEMINI_CLI_NO_RELAUNCH", "true"),
+            ("GEMINI_SANDBOX", "true"),
+        ],
+    );
+
+    assert_eq!(status_code(&output), 0);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn agent_checker_unsets_cursor_session_env() {
+    let checker = write_checker_script(
+        "#!/usr/bin/env sh\ncat >/dev/null\nif [ -n \"$CURSOR_CLI\" ] || [ -n \"$CURSOR_INVOKED_AS\" ] || [ -n \"$AGENT_CLI_EXIT_ON_COMPLETION\" ]; then\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"cursor env leaked\"}\\n'\nelse\n  printf '{\"verdict\":\"safe\"}\\n'\nfi\n",
+    );
+
+    let output = run_guardrails_with_env(
+        &[
+            "--checker",
+            "agent",
+            "--checker-cmd",
+            &checker,
+            "--checker-arg",
+            "-",
+            "--",
+            "echo",
+            "ok",
+        ],
+        None,
+        &[
+            ("CURSOR_CLI", "1"),
+            ("CURSOR_INVOKED_AS", "agent"),
+            ("AGENT_CLI_EXIT_ON_COMPLETION", "true"),
+        ],
     );
 
     assert_eq!(status_code(&output), 0);

@@ -129,7 +129,7 @@ make all-platforms
 1. `guardrails` executes a wrapped command.
 2. Wrapped-command stdin is forwarded to the wrapped process.
 3. It captures full command output (buffered, not streamed). By default it captures `stdout` and `stderr` separately; with `--pty` it captures a merged PTY stream for terminal-style formatting.
-4. It invokes the selected checker tool (`codex` or `claude`) in non-interactive mode from inside `guardrails`.
+4. It invokes the selected checker tool (`codex`, `claude`, `gemini`, or `agent`) in non-interactive mode from inside `guardrails`.
 5. If verdict is `unsafe`, it exits with code `42` and does not forward wrapped output.
 6. If verdict is `safe`, it re-emits the same bytes to `stdout`/`stderr` and exits with the wrapped command's status.
 7. If no wrapped command is provided, it reads fully buffered stdin, checks it, and on `safe` re-emits stdin to `stdout`.
@@ -152,6 +152,12 @@ make all-platforms
 ```bash
 # Wrap another CLI command
 guardrails --checker codex -- gh issue list
+
+# Use Gemini as checker
+guardrails --checker gemini -- gh issue list
+
+# Use Cursor Agent as checker
+guardrails --checker agent -- gh issue list
 
 # Add a checker timeout (milliseconds)
 guardrails --checker codex --checker-timeout-ms 10000 -- gh issue list
@@ -186,8 +192,11 @@ guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec
 This repo includes a defensive canary file with instruction-like text so you can verify blocking behavior end-to-end with the GitHub API.
 
 ```bash
-# Run the built-in demo helper (shows both safe + canary files; expects guardrails + gh)
+# Run the built-in demo helper (tests all installed checkers; expects guardrails + gh)
 ./examples/run-gh-api-canary-demo.sh
+
+# Optional: run demo for only one checker
+CHECKER=gemini ./examples/run-gh-api-canary-demo.sh
 
 # Or run directly
 guardrails --checker codex -- \
@@ -232,6 +241,8 @@ Default checker tool commands:
 
 - `codex exec "<prompt>"` (for `--checker codex`)
 - `claude -p "<prompt>"` (for `--checker claude`)
+- `gemini -p "<prompt>"` (for `--checker gemini`)
+- `agent -p "<prompt>"` (for `--checker agent`; fallback command: `cursor-agent`)
 
 Use `--checker-cmd` to override the executable path and repeated `--checker-arg` for tool-specific args. When `--checker-arg` is used, `guardrails` writes the prompt to checker stdin instead of appending prompt arguments automatically.
 

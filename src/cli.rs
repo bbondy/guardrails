@@ -7,7 +7,7 @@ pub struct Cli {
     #[arg(long, value_enum)]
     pub checker: CheckerTool,
 
-    /// Checker executable path. Defaults to "codex" or "claude"
+    /// Checker executable path. Defaults to checker-specific command names.
     #[arg(long)]
     pub checker_cmd: Option<String>,
 
@@ -52,6 +52,9 @@ pub struct Cli {
 pub enum CheckerTool {
     Codex,
     Claude,
+    Gemini,
+    #[value(alias = "cursor-agent")]
+    Agent,
 }
 
 impl CheckerTool {
@@ -59,6 +62,8 @@ impl CheckerTool {
         match self {
             CheckerTool::Codex => "codex",
             CheckerTool::Claude => "claude",
+            CheckerTool::Gemini => "gemini",
+            CheckerTool::Agent => "agent",
         }
     }
 
@@ -66,6 +71,15 @@ impl CheckerTool {
         match self {
             CheckerTool::Codex => "codex",
             CheckerTool::Claude => "claude",
+            CheckerTool::Gemini => "gemini",
+            CheckerTool::Agent => "agent",
+        }
+    }
+
+    pub fn fallback_cmds(self) -> &'static [&'static str] {
+        match self {
+            CheckerTool::Codex | CheckerTool::Claude | CheckerTool::Gemini => &[],
+            CheckerTool::Agent => &["cursor-agent"],
         }
     }
 }
