@@ -11,6 +11,7 @@ A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and eit
 - macOS icon: `assets/icons/guardrails.icns`
 - Windows icon: `assets/icons/guardrails.ico`
 - Additional PNG sizes: `assets/icons/png/`
+- Windows binaries embed `assets/icons/guardrails.ico` at build time via `build.rs`.
 
 ## Install
 
