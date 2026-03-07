@@ -1,0 +1,29 @@
+{
+  "name": "@brianbondy/guardrails",
+  "version": "0.0.0",
+  "description": "Native CLI wrapper that blocks prompt-injection output from other CLIs",
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bbondy/guardrails.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bbondy/guardrails/issues"
+  },
+  "homepage": "https://github.com/bbondy/guardrails#readme",
+  "bin": {
+    "guardrails": "npm/bin/guardrails.js"
+  },
+  "files": [
+    "npm/bin",
+    "npm/scripts",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node npm/scripts/postinstall.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": false
+}

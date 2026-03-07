@@ -1,2 +1,6 @@
 /target
 .DS_Store
+node_modules
+npm/bin/guardrails-bin
+npm/bin/guardrails-bin.exe
+.envrc
