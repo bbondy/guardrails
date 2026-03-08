@@ -1,6 +1,6 @@
 # guardrails Architecture
 
-This document explains how `guardrails` works internally in a way that is technical but easy to follow.
+This document explains how `guardrails` works internally.
 
 ## 1) What guardrails is
 
@@ -28,16 +28,20 @@ At a high level:
 
 Component diagram:
 
+Static fallback image:
+
+![guardrails component diagram](assets/architecture-component.svg)
+
 ```mermaid
 graph TD
-  U[User shell] --> G[guardrails binary]
-  G --> C[cli.rs\narg + mode parsing]
-  C --> R[runner.rs\nmode orchestration]
-  R --> W[Wrapped command\nor stdin capture]
-  R --> K[checker.rs\nprompt + checker process]
-  K --> T[Checker tool\n(codex/claude/gemini/agent)]
-  R --> F[filter.rs\nlocal fallback sanitizer]
-  R --> O[stdout/stderr + exit code]
+  U["User shell"] --> G["guardrails binary"]
+  G --> C["cli.rs<br/>arg + mode parsing"]
+  C --> R["runner.rs<br/>mode orchestration"]
+  R --> W["Wrapped command<br/>or stdin capture"]
+  R --> K["checker.rs<br/>prompt + checker process"]
+  K --> T["Checker tool<br/>codex/claude/gemini/agent"]
+  R --> F["filter.rs<br/>local fallback sanitizer"]
+  R --> O["stdout/stderr + exit code"]
 ```
 
 ## 3) Mode selection and argument parsing
