@@ -6,6 +6,8 @@
 
 A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and either blocks unsafe output (`check` mode) or minimally filters unsafe content (`filter` mode).
 
+Detailed implementation guide: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
 ## Install
 
 Via npmjs:
@@ -207,7 +209,7 @@ cat output.txt | guardrails filter --checker claude --exit-code 0
 guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json --checker-arg - -- ls -la
 
 # Add extra checker context and permissions hints to payload
-guardrails --checker codex \
+guardrails filter --checker codex \
   --checker-context "repo contains internal-only docs" \
   --checker-permission "workspace-write" \
   -- gh issue list
@@ -272,6 +274,7 @@ Default checker tool commands:
 Use `--checker-cmd` to override the executable path and repeated `--checker-arg` for tool-specific args. When `--checker-arg` is used, `guardrails` writes the prompt to checker stdin instead of appending prompt arguments automatically.
 
 Use `--checker-context` (repeatable) for extra trusted context in `filter` mode and `--checker-permission` (repeatable) for permission hints. These are added to the checker payload in addition to the built-in system instructions.
+`check` mode rejects `--checker-context` with exit code `2`.
 Detection scope is `output.stdout`/`output.stderr`; metadata fields like `context` and `permissions` are not treated as injection content.
 
 `guardrails` writes a prompt to the checker that includes this payload JSON:
@@ -292,7 +295,7 @@ Detection scope is `output.stdout`/`output.stderr`; metadata fields like `contex
 }
 ```
 
-The checker tool must write a JSON verdict on stdout:
+For `check` mode, the checker tool must write a JSON verdict on stdout:
 
 ```json
 {"verdict":"safe","reason":"optional"}
@@ -303,3 +306,16 @@ or
 ```json
 {"verdict":"unsafe","reason":"detected instruction redirection"}
 ```
+
+For `filter` mode, the checker tool must write JSON with rewritten streams:
+
+```json
+{
+  "stdout": "filtered stdout",
+  "stderr": "filtered stderr",
+  "detected_prompt_injection": false,
+  "reason": "optional summary"
+}
+```
+
+`detected_prompt_injection` controls whether guardrails exits `42` after emitting filtered output.
