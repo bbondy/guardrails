@@ -15,7 +15,7 @@ pub struct Cli {
     #[arg(long)]
     pub checker_arg: Vec<String>,
 
-    /// Extra context passed to the checker prompt payload (repeatable)
+    /// Extra trusted context passed to the checker prompt payload (repeatable)
     #[arg(long)]
     pub checker_context: Vec<String>,
 
@@ -46,10 +46,6 @@ pub struct Cli {
     /// Maximum bytes per stream (stdout/stderr) sent to checker
     #[arg(long)]
     pub max_output_bytes: Option<usize>,
-
-    /// Stream wrapped command output directly (no checker pass; local detector still applies)
-    #[arg(long)]
-    pub streaming: bool,
 
     /// Run wrapped command under a pseudo-terminal in buffered mode to preserve TTY-style formatting
     #[arg(long)]
