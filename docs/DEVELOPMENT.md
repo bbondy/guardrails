@@ -4,6 +4,7 @@
 
 ```bash
 cargo build --release
+./target/release/guardrails --help
 cargo fmt
 cargo test
 make install-hooks

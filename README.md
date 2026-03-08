@@ -28,16 +28,48 @@ Optional install directory:
 curl -fsSL https://raw.githubusercontent.com/bbondy/guardrails/main/install.sh | INSTALL_DIR="$HOME/.local/bin" sh
 ```
 
-## Build
+Developer and release workflows are documented in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
-Local (requires Rust toolchain):
+## CLI help
 
 ```bash
-cargo build --release
-./target/release/guardrails --help
+guardrails --help
 ```
 
-Developer and release workflows are documented in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+```text
+Usage: guardrails [OPTIONS] --checker <CHECKER> [COMMAND]...
+
+Arguments:
+  [COMMAND]...  Wrapped command and arguments. Example: -- gh issue list
+
+Options:
+      --checker <CHECKER>
+          Tool to use for prompt-injection checks [possible values: codex, claude, gemini, agent]
+      --checker-cmd <CHECKER_CMD>
+          Checker executable path. Defaults to checker-specific command names
+      --checker-arg <CHECKER_ARG>
+          Extra args passed to the checker executable (repeatable). If provided, prompt is sent via stdin
+      --checker-context <CHECKER_CONTEXT>
+          Extra trusted context passed to the checker prompt payload (repeatable)
+      --checker-permission <CHECKER_PERMISSION>
+          Permission hints passed to the checker prompt payload (repeatable)
+      --command-name <COMMAND_NAME>
+          Logical command name when scanning stdin (no wrapped command provided) [default: stdin]
+      --exit-code <EXIT_CODE>
+          Exit code to return in stdin pass-through mode when verdict is safe [default: 0]
+      --checker-timeout-ms <CHECKER_TIMEOUT_MS>
+          Timeout (milliseconds) for checker tool execution
+      --max-output-bytes <MAX_OUTPUT_BYTES>
+          Maximum bytes per stream (stdout/stderr) sent to checker
+      --pty
+          Run wrapped command under a pseudo-terminal in buffered mode to preserve TTY-style formatting
+  -h, --help
+          Print help
+  -V, --version
+          Print version
+```
+
+`guardrails filter --help` currently prints the same options.
 
 ## How it works (`check` mode)
 
