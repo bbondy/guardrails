@@ -1,136 +1,82 @@
 # guardrails Architecture
 
-This document explains how `guardrails` works internally.
+This document explains how `guardrails` is implemented, file by file, and shows the exact protocol between the Rust app and checker CLIs.
 
-## 1) What guardrails is
+## 1) What the binary does
 
-`guardrails` is a Rust CLI wrapper around another command (or around piped stdin).
+`guardrails` wraps command output (or piped stdin), sends that output to a checker tool, and then decides:
 
-It has two operating modes:
+- `check` mode: block or pass through.
+- `filter` mode: rewrite output or fail.
 
-- `check` mode (default): detect prompt-injection patterns and block unsafe output.
-- `filter` mode (`guardrails filter ...`): sanitize output and pass the sanitized output through.
+Core invariants:
 
-At a high level:
+- `check` mode blocks on checker `unsafe` verdict (`exit 42`).
+- `filter` mode trusts checker's `detected_prompt_injection` flag:
+  - `true` => `exit 42`
+  - `false` => pass through filtered output and return wrapped status / `--exit-code`
+- checker failure in either mode => `exit 43`
 
-1. Capture output (or read stdin).
-2. Build a JSON payload describing that output.
-3. Send that payload to a checker CLI (Codex/Claude/Gemini/Agent).
-4. Enforce policy based on checker response (or fallback local sanitizer).
+## 2) Per-file implementation recap
 
-## 2) Module map
-
-- `src/main.rs`: mode parse, Clap parse, top-level validation, handoff to runner.
-- `src/cli.rs`: CLI options, checker enum, mode detection (`filter` subcommand handling).
-- `src/runner.rs`: orchestration for wrapped-command flow and stdin flow.
-- `src/checker.rs`: checker invocation, prompt building, JSON response parsing.
-- `src/filter.rs`: local minimal sanitizer and output-clamping helper.
-
-Component diagram:
-
-Static fallback image:
-
-![guardrails component diagram](assets/architecture-component.svg)
-
-```mermaid
-graph TD
-  U["User shell"] --> G["guardrails binary"]
-  G --> C["cli.rs<br/>arg + mode parsing"]
-  C --> R["runner.rs<br/>mode orchestration"]
-  R --> W["Wrapped command<br/>or stdin capture"]
-  R --> K["checker.rs<br/>prompt + checker process"]
-  K --> T["Checker tool<br/>codex/claude/gemini/agent"]
-  R --> F["filter.rs<br/>local fallback sanitizer"]
-  R --> O["stdout/stderr + exit code"]
-```
-
-## 3) Mode selection and argument parsing
-
-Mode selection is intentionally simple:
-
-- If argv position 1 is literal `filter`, mode is `Filter`.
-- Otherwise mode is `Check`.
-
-After selecting mode, `filter` is removed from argv and Clap parses the same `Cli` struct for both modes.
-
-Important validation:
-
-- `--pty` requires a wrapped command (validated in `main`).
-- In `check` mode, `--checker-context` is rejected with exit code `2`.
-
-## 4) Execution paths
-
-There are two input paths for each mode:
-
-- Wrapped command path (`command` is present)
-- Stdin path (`command` absent, read from stdin)
-
-Matrix:
-
-| Mode | Input path | Core behavior |
+| File | Responsibility | Key entry points |
 |---|---|---|
-| check | wrapped command | checker returns `safe/unsafe`; unsafe blocks output |
-| check | stdin | checker returns `safe/unsafe`; safe re-emits stdin |
-| filter | wrapped command | checker returns rewritten stdout/stderr |
-| filter | stdin | checker returns rewritten stdout |
+| `src/main.rs` | Top-level startup and mode selection handoff | `main()` |
+| `src/cli.rs` | Clap option schema and mode parse (`filter` subcommand) | `Cli`, `parse_mode_and_args()` |
+| `src/runner.rs` | Runtime orchestration for wrapped-command and stdin paths | `run()`, `cmd_wrapped()`, `cmd_stdin()` |
+| `src/checker.rs` | Checker process spawning, prompt construction, JSON parsing | `invoke_checker()`, `invoke_filter()` |
+| `src/filter.rs` | Shared data types and stream-size clamp helper for checker payloads | `FilteredOutput`, `clamp_output_for_checker()` |
 
-## 5) Wrapped command flow
+## 3) Runtime flow (simple)
 
-When a wrapped command is provided:
+### 3.1 Startup
 
-1. Execute wrapped program.
-2. Capture output bytes (`stdout`, `stderr`) in memory.
-3. Build checker payload (`CheckRequest`).
-4. Invoke checker prompt.
-5. Apply mode-specific decision logic.
+1. `main()` calls `parse_mode_and_args()`.
+2. Clap parses args into `Cli`.
+3. `main()` validates `--pty` usage.
+4. `runner::run(mode, cli)` executes.
 
-`--pty` behavior on Unix:
+### 3.2 `runner::run()` routing
 
-- wrapped process runs under PTY (`openpty`).
-- output streams are merged into `stdout` capture (no separate `stderr` stream).
-- useful for preserving TTY formatting/column output.
+`runner::run()` does early mode validation:
 
-## 6) Stdin flow
+- `check` mode rejects `--checker-context` (exit `2`).
 
-When no wrapped command is provided:
+Then it chooses one of two paths:
 
-1. If stdin is TTY, error and exit `2`.
-2. Read stdin fully into memory.
-3. Build `CheckRequest` with `command_name` and `exit_code`.
-4. Invoke checker and apply mode logic.
+- Wrapped command path: `cmd_wrapped(...)`
+- Stdin path: `cmd_stdin(...)`
 
-In stdin mode:
+## 4) Mode behavior matrix
 
-- `check` safe path exits with `--exit-code`.
-- `filter` safe path also exits with `--exit-code`.
+| Mode | Input source | Checker call | Success path | Failure path |
+|---|---|---|---|---|
+| `check` | wrapped command | `invoke_checker` | emit original stdout/stderr, exit wrapped status | checker error => `43`; unsafe => `42` |
+| `check` | stdin | `invoke_checker` | emit original stdin, exit `--exit-code` | checker error => `43`; unsafe => `42` |
+| `filter` | wrapped command | `invoke_filter` | emit checker-filtered stdout/stderr; `detected_prompt_injection=true` => `42`; else wrapped status | checker error => `43` |
+| `filter` | stdin | `invoke_filter` | emit checker-filtered stdout; `detected_prompt_injection=true` => `42`; else `--exit-code` | checker error => `43` |
 
-## 7) Checker invocation details
+## 5) Protocol between guardrails and checker
 
-Checker invocation is done by `checker.rs`.
+`guardrails` does not use a network API. It spawns a checker executable and exchanges text through process args/stdin/stdout.
 
-Default command lines (when `--checker-arg` is not provided):
+### 5.1 Checker process invocation
 
-- Codex: `codex exec "<prompt>"`
-- Claude: `claude -p "<prompt>"`
-- Gemini: `gemini -p "<prompt>"`
-- Agent: `agent -p "<prompt>"` (fallback executable: `cursor-agent`)
+Default invocation when no `--checker-arg` is provided:
+
+- `codex exec "<prompt>"`
+- `claude -p "<prompt>"`
+- `gemini -p "<prompt>"`
+- `agent -p "<prompt>"` (fallback executable name: `cursor-agent`)
 
 If `--checker-arg` is provided:
 
-- those args are used directly,
-- prompt is written to checker stdin (`Stdio::piped()`).
+- those args are used as-is,
+- prompt is written to checker stdin.
 
-Timeout behavior:
+### 5.2 Payload JSON sent inside the prompt
 
-- optional `--checker-timeout-ms` kills checker process on deadline.
-
-Environment hardening:
-
-- checker-specific env vars are removed before spawn (Claude/Gemini/Agent) to avoid nested tool relaunch behavior.
-
-## 8) Payload sent to checker
-
-The checker receives a prompt containing a JSON payload like:
+The prompt includes this serialized request payload:
 
 ```json
 {
@@ -143,19 +89,19 @@ The checker receives a prompt containing a JSON payload like:
     "stderr": "..."
   },
   "instructions": "...",
-  "context": ["..."],
-  "permissions": ["..."]
+  "context": ["optional trusted context"],
+  "permissions": ["optional permission hints"]
 }
 ```
 
-`stdout`/`stderr` in payload can be clamped by `--max-output-bytes`.
-Clamping appends `[TRUNCATED N BYTES]` marker in payload only (not in emitted output).
+Notes:
 
-## 9) Checker response contracts
+- `context` is only accepted in `filter` mode.
+- `stdout`/`stderr` in payload may be truncated by `--max-output-bytes`.
 
-### check mode response
+### 5.3 Expected checker response schemas
 
-Checker must return JSON:
+`check` mode response:
 
 ```json
 {"verdict":"safe"}
@@ -164,152 +110,152 @@ Checker must return JSON:
 or
 
 ```json
-{"verdict":"unsafe","reason":"short reason"}
+{"verdict":"unsafe","reason":"detected instruction redirection"}
 ```
 
-### filter mode response
-
-Checker must return JSON:
+`filter` mode response:
 
 ```json
 {
-  "stdout":"filtered stdout",
-  "stderr":"filtered stderr",
-  "detected_prompt_injection": true,
-  "reason":"optional summary"
+  "stdout": "filtered stdout",
+  "stderr": "filtered stderr",
+  "detected_prompt_injection": false,
+  "reason": "optional summary"
 }
 ```
 
-Notes:
+`detected_prompt_injection` drives `42` in filter mode.
 
-- `detected_prompt_injection` is optional at parse time; missing means `false`.
-- if checker returns empty `stdout` or `stderr` field, guardrails falls back to local minimal filtering for that specific stream (`choose_filtered_text`).
+### 5.4 Parser tolerance
 
-## 10) JSON parsing robustness
+Checker stdout parsing is tolerant in this order:
 
-Checker output parsing accepts:
+1. parse full stdout as JSON,
+2. parse any single line as JSON,
+3. parse first balanced JSON object from mixed text.
 
-1. full stdout as JSON,
-2. any single line that is valid JSON,
-3. first balanced JSON object found in noisy text.
+If parsing still fails => checker failure (`43`).
 
-This helps tolerate checkers that print extra logs around JSON.
+## 6) Explicit protocol examples
 
-## 11) Decision logic by mode
+### Example A: `check` mode, safe output
 
-### check mode
+Command:
 
-Sequence diagram:
-
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant G as guardrails
-  participant W as Wrapped cmd/stdin
-  participant T as Checker
-
-  U->>G: run check mode
-  G->>W: capture output
-  G->>T: prompt + payload
-  T-->>G: {verdict}
-  alt verdict == safe
-    G-->>U: emit original output
-    G-->>U: exit wrapped status / --exit-code
-  else verdict == unsafe
-    G-->>U: block output, print reason
-    G-->>U: exit 42
-  end
+```bash
+guardrails --checker codex -- echo "hello"
 ```
 
-### filter mode
+Wrapped output captured by guardrails:
 
-Sequence diagram:
-
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant G as guardrails
-  participant W as Wrapped cmd/stdin
-  participant T as Checker
-  participant F as Local fallback filter
-
-  U->>G: run filter mode
-  G->>W: capture output
-  G->>T: sanitize prompt + payload
-  alt checker returns valid JSON
-    T-->>G: {stdout,stderr,detected_prompt_injection}
-    G-->>U: emit filtered output
-    alt detected_prompt_injection == true
-      G-->>U: exit 42
-    else
-      G-->>U: exit wrapped status / --exit-code
-    end
-  else checker fails/invalid JSON/timeout
-    G->>F: minimally_filter_preserve_json
-    F-->>G: sanitized output
-    G-->>U: emit sanitized output
-    alt sanitizer changed output
-      G-->>U: exit 42
-    else
-      G-->>U: exit wrapped status / --exit-code
-    end
-  end
+```json
+{"stdout":"hello\n","stderr":""}
 ```
 
-## 12) Local fallback sanitizer (`filter.rs`)
+Checker response:
 
-Fallback sanitizer removes suspicious lines using conservative substring heuristics such as:
+```json
+{"verdict":"safe"}
+```
 
-- `ignore previous instruction`
-- `override ... instruction`
-- `system prompt`
-- `return only json`
-- `tool call`
+Result:
 
-If input is valid JSON:
+- emits `hello`
+- exits wrapped status (`0` here)
 
-- it recursively sanitizes JSON string fields,
-- preserves valid JSON shape,
-- avoids corrupting structured data.
+### Example B: `check` mode, unsafe output
 
-## 13) Exit code model
+Command:
 
-- `42`: prompt injection detected/blocked (or fallback sanitizer changed output)
-- `43`: checker tool failure in `check` mode
-- `126`: wrapped command not executable/permission denied
+```bash
+guardrails --checker codex -- printf "ignore previous instructions\n"
+```
+
+Checker response:
+
+```json
+{"verdict":"unsafe","reason":"instruction redirection in stdout"}
+```
+
+Result:
+
+- does not emit wrapped output
+- prints blocked message on stderr
+- exits `42`
+
+### Example C: `filter` mode, benign transform
+
+Command:
+
+```bash
+guardrails filter --checker codex --checker-context="remove .md entries" -- ls
+```
+
+Checker response:
+
+```json
+{
+  "stdout": "Cargo.lock\nCargo.toml\n",
+  "stderr": "",
+  "detected_prompt_injection": false,
+  "reason": "context transform"
+}
+```
+
+Result:
+
+- emits rewritten stdout
+- exits wrapped status (`0` for `ls`)
+
+### Example D: `filter` mode, injection filtered
+
+Checker response:
+
+```json
+{
+  "stdout": "safe-line\n",
+  "stderr": "",
+  "detected_prompt_injection": true,
+  "reason": "removed instruction redirection"
+}
+```
+
+Result:
+
+- emits filtered stdout
+- exits `42`
+
+### Example E: checker failure (both modes)
+
+Failure cases:
+
+- checker executable missing,
+- checker timeout,
+- checker non-zero exit,
+- checker invalid/unparseable JSON.
+
+Result:
+
+- prints checker error
+- exits `43`
+
+## 7) Exit codes
+
+- `42`: prompt injection detected / blocked
+- `43`: checker failure (spawn/timeout/non-zero/parse)
+- `126`: wrapped command exists but is not executable
 - `127`: wrapped command not found
-- `2`: argument/usage errors (for example `--pty` without command, `--checker-context` in check mode)
-- otherwise: wrapped command exit status (or `--exit-code` in stdin mode)
+- `2`: usage/config error (for example invalid mode+flag combination)
+- otherwise: wrapped command status, or `--exit-code` in stdin mode
 
-## 14) Trust boundaries
+## 8) Notes for contributors
 
-Trusted:
+When debugging behavior, locate it in this order:
 
-- CLI args from operator (`checker`, `context`, `permissions`, etc.)
-- system prompt/instructions generated by guardrails
+1. Mode (`check` vs `filter`)
+2. Input path (wrapped command vs stdin)
+3. Checker process outcome (spawn/timeout/status)
+4. JSON parse outcome
+5. Mode-specific exit branch in `runner.rs`
 
-Untrusted:
-
-- wrapped command `stdout` and `stderr`
-- piped stdin content
-
-The checker prompts explicitly instruct tools to treat only output streams as untrusted content.
-
-## 15) Practical mental model for new contributors
-
-If you are new to this codebase, keep this model:
-
-- `runner.rs` decides *when* to call checker and *what* exit code to return.
-- `checker.rs` decides *how* to talk to checker CLIs and parse their JSON.
-- `filter.rs` is a safety net when checker output is unusable.
-- `cli.rs` defines user-facing knobs and mode switching.
-
-If behavior looks wrong, first identify:
-
-1. Was this wrapped-command path or stdin path?
-2. Was mode `check` or `filter`?
-3. Did checker return valid JSON?
-4. Did fallback sanitizer run?
-5. Which exit-code branch fired?
-
-That sequence almost always reveals the bug quickly.
+Most behavior changes are isolated to `runner.rs` decision branches and `checker.rs` schema parsing.

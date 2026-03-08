@@ -170,10 +170,9 @@ make all-platforms
 2. For wrapped commands, stdin is forwarded to the wrapped process while output remains buffered for filtering.
 3. It invokes the checker and asks for sanitized output.
 4. It forwards checker-provided filtered output.
-5. If checker filtering fails, it falls back to a local minimal filter.
-6. Local fallback filtering sanitizes suspicious text; when fallback input is JSON, it sanitizes JSON string fields and keeps valid JSON.
-7. It exits `42` when prompt injection/instruction redirection is detected.
-8. Otherwise, it returns the wrapped command exit status (or `--exit-code` in stdin mode), even if trusted context caused benign output rewrites.
+5. If checker filtering fails (timeout/error/invalid response), it exits `43` and does not emit wrapped output.
+6. It exits `42` when prompt injection/instruction redirection is detected.
+7. Otherwise, it returns the wrapped command exit status (or `--exit-code` in stdin mode), even if trusted context caused benign output rewrites.
 
 ## Commands
 
@@ -255,7 +254,7 @@ Expected result: safe text is printed and exit code is `0`.
 - otherwise: wrapped command exit code (or `--exit-code` in stdin mode)
 
 Notes:
-- `43` applies to `check` mode.
+- `43` applies to both `check` and `filter` modes when checker execution/parsing fails.
 - In `filter` mode, guardrails returns `42` only when prompt injection/instruction redirection is detected.
 - `--pty` requires a wrapped command.
 - In `--pty` mode, wrapped `stdout`/`stderr` are captured as one merged stream.
