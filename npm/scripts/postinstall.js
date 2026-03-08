@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const https = require("node:https");
+const { spawnSync } = require("node:child_process");
 
 const SKIP_DOWNLOAD_ENV = "GUARDRAILS_INSTALL_SKIP_DOWNLOAD";
 const DEFAULT_REPO = "bbondy/guardrails";
@@ -39,25 +40,60 @@ download(url, destination)
   });
 
 function resolveTarget(platform, arch) {
-  if (platform === "darwin" && arch === "arm64") {
+  const resolvedArch = resolveInstallArch(platform, arch);
+
+  if (platform === "darwin" && arch !== resolvedArch) {
+    console.log(
+      `Detected macOS translation (${arch} -> ${resolvedArch}); installing native guardrails binary.`
+    );
+  }
+
+  if (platform === "darwin" && resolvedArch === "arm64") {
     return { asset: "guardrails-darwin-arm64", binaryName: "guardrails-bin" };
   }
-  if (platform === "darwin" && arch === "x64") {
+  if (platform === "darwin" && resolvedArch === "x64") {
     return { asset: "guardrails-darwin-amd64", binaryName: "guardrails-bin" };
   }
-  if (platform === "linux" && arch === "arm64") {
+  if (platform === "linux" && resolvedArch === "arm64") {
     return { asset: "guardrails-linux-arm64", binaryName: "guardrails-bin" };
   }
-  if (platform === "linux" && arch === "x64") {
+  if (platform === "linux" && resolvedArch === "x64") {
     return { asset: "guardrails-linux-amd64", binaryName: "guardrails-bin" };
   }
-  if (platform === "win32" && arch === "arm64") {
+  if (platform === "win32" && resolvedArch === "arm64") {
     return { asset: "guardrails-windows-arm64.exe", binaryName: "guardrails-bin.exe" };
   }
-  if (platform === "win32" && arch === "x64") {
+  if (platform === "win32" && resolvedArch === "x64") {
     return { asset: "guardrails-windows-amd64.exe", binaryName: "guardrails-bin.exe" };
   }
   return null;
+}
+
+function resolveInstallArch(platform, arch) {
+  const overrideArch = process.env.GUARDRAILS_INSTALL_ARCH;
+  if (overrideArch === "arm64" || overrideArch === "x64") {
+    return overrideArch;
+  }
+
+  // When npm/node runs under Rosetta on Apple Silicon, process.arch is x64.
+  // Prefer the native arm64 artifact in that specific case.
+  if (platform === "darwin" && arch === "x64") {
+    const translated = darwinSysctl("sysctl.proc_translated");
+    const hostArm64Capable = darwinSysctl("hw.optional.arm64");
+    if (translated === "1" && hostArm64Capable === "1") {
+      return "arm64";
+    }
+  }
+
+  return arch;
+}
+
+function darwinSysctl(name) {
+  const result = spawnSync("sysctl", ["-in", name], { encoding: "utf8" });
+  if (result.status !== 0) {
+    return null;
+  }
+  return (result.stdout || "").trim();
 }
 
 function download(url, destination) {
