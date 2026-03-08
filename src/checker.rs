@@ -6,7 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::cli::CheckerTool;
-use crate::filter::{FilteredOutput, choose_filtered_text};
+use crate::filter::FilteredOutput;
 
 #[derive(Debug, Serialize)]
 pub struct CheckRequest {
@@ -73,8 +73,6 @@ pub fn invoke_filter(
     checker_args: Vec<String>,
     checker_timeout_ms: Option<u64>,
     request: &CheckRequest,
-    original_stdout: &str,
-    original_stderr: &str,
 ) -> Result<FilteredOutput, String> {
     let prompt = build_filter_prompt(request)?;
     let output = run_checker_prompt(
@@ -84,7 +82,7 @@ pub fn invoke_filter(
         checker_timeout_ms,
         &prompt,
     )?;
-    parse_filtered_output(&output.stdout, original_stdout, original_stderr)
+    parse_filtered_output(&output.stdout)
 }
 
 fn run_checker_prompt(
@@ -307,18 +305,12 @@ fn parse_verdict(raw: &[u8]) -> Result<Verdict, String> {
     map_verdict(parsed)
 }
 
-fn parse_filtered_output(
-    raw: &[u8],
-    original_stdout: &str,
-    original_stderr: &str,
-) -> Result<FilteredOutput, String> {
+fn parse_filtered_output(raw: &[u8]) -> Result<FilteredOutput, String> {
     let parsed: FilterResponse = parse_json_response(raw)
         .map_err(|_| "checker tool returned invalid JSON filter response".to_string())?;
-    let stdout = choose_filtered_text(original_stdout, &parsed.stdout);
-    let stderr = choose_filtered_text(original_stderr, &parsed.stderr);
     Ok(FilteredOutput {
-        stdout,
-        stderr,
+        stdout: parsed.stdout,
+        stderr: parsed.stderr,
         detected_prompt_injection: parsed.detected_prompt_injection,
     })
 }

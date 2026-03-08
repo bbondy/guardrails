@@ -3,7 +3,7 @@ use std::process::{Command as ProcessCommand, ExitStatus, Stdio};
 
 use crate::checker::{CheckRequest, OutputEnvelope, Verdict, invoke_checker, invoke_filter};
 use crate::cli::{Cli, Mode};
-use crate::filter::{clamp_output_for_checker, minimally_filter_preserve_json};
+use crate::filter::clamp_output_for_checker;
 
 #[cfg(unix)]
 use std::fs::File;
@@ -98,9 +98,6 @@ fn cmd_wrapped(
         }
     };
 
-    let stdout_text = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr_text = String::from_utf8_lossy(&output.stderr).into_owned();
-
     let req = CheckRequest {
         checker: checker.id().to_string(),
         task: "detect_prompt_injection".to_string(),
@@ -134,15 +131,7 @@ fn cmd_wrapped(
             }
         }
         Mode::Filter => {
-            match invoke_filter(
-                checker,
-                checker_cmd,
-                checker_arg,
-                checker_timeout_ms,
-                &req,
-                &stdout_text,
-                &stderr_text,
-            ) {
+            match invoke_filter(checker, checker_cmd, checker_arg, checker_timeout_ms, &req) {
                 Ok(filtered) => {
                     write_all(io::stdout(), filtered.stdout.as_bytes());
                     write_all(io::stderr(), filtered.stderr.as_bytes());
@@ -152,17 +141,8 @@ fn cmd_wrapped(
                     }
                 }
                 Err(e) => {
-                    // On filter checker failure, fall back to local minimal filtering.
-                    eprintln!("warning: filter checker failed, applying local minimal filter: {e}");
-                    let sanitized_stdout = minimally_filter_preserve_json(&stdout_text);
-                    let sanitized_stderr = minimally_filter_preserve_json(&stderr_text);
-                    let filtered_applied =
-                        sanitized_stdout != stdout_text || sanitized_stderr != stderr_text;
-                    write_all(io::stdout(), sanitized_stdout.as_bytes());
-                    write_all(io::stderr(), sanitized_stderr.as_bytes());
-                    if filtered_applied {
-                        std::process::exit(EXIT_PROMPT_INJECTION);
-                    }
+                    eprintln!("error: checker failed: {e}");
+                    std::process::exit(EXIT_CHECKER_FAILURE);
                 }
             }
             exit_with_wrapped_status(output.status);
@@ -226,16 +206,7 @@ fn cmd_stdin(
             }
         }
         Mode::Filter => {
-            let original_stdout = String::from_utf8_lossy(&buffered).into_owned();
-            match invoke_filter(
-                checker,
-                checker_cmd,
-                checker_arg,
-                checker_timeout_ms,
-                &req,
-                &original_stdout,
-                "",
-            ) {
+            match invoke_filter(checker, checker_cmd, checker_arg, checker_timeout_ms, &req) {
                 Ok(filtered) => {
                     write_all(io::stdout(), filtered.stdout.as_bytes());
                     let injection_detected = filtered.detected_prompt_injection.unwrap_or(false);
@@ -244,15 +215,8 @@ fn cmd_stdin(
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "warning: filter checker failed, applying local minimal filter to stdin: {e}"
-                    );
-                    let sanitized_stdout = minimally_filter_preserve_json(&original_stdout);
-                    let filtered_applied = sanitized_stdout != original_stdout;
-                    write_all(io::stdout(), sanitized_stdout.as_bytes());
-                    if filtered_applied {
-                        std::process::exit(EXIT_PROMPT_INJECTION);
-                    }
+                    eprintln!("error: checker failed: {e}");
+                    std::process::exit(EXIT_CHECKER_FAILURE);
                 }
             }
             std::process::exit(exit_code);
