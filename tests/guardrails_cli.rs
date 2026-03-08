@@ -473,7 +473,10 @@ fn filter_mode_benign_md_rewrite_with_scary_reason_still_returns_0() {
     );
 
     assert_eq!(status_code(&output), 0);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "Cargo.lock\nCargo.toml\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Cargo.lock\nCargo.toml\n"
+    );
 }
 
 #[cfg(unix)]

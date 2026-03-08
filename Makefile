@@ -6,6 +6,12 @@ RELEASE_TAG = v$(RELEASE_VERSION)
 build:
 	cargo build --release
 
+.PHONY: install-hooks
+install-hooks:
+	@git config core.hooksPath .githooks
+	@chmod +x .githooks/pre-commit .githooks/pre-push
+	@echo "installed git hooks from .githooks"
+
 .PHONY: demo
 demo: build
 	GUARDRAILS_BIN=./target/release/guardrails ./examples/run-gh-api-canary-demo.sh

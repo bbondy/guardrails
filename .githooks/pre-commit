@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -eu
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "pre-commit: cargo is required to run formatting checks" >&2
+  exit 1
+fi
+
+echo "pre-commit: running cargo fmt --all -- --check"
+cargo fmt --all -- --check

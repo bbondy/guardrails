@@ -41,7 +41,33 @@ Local development commands:
 cargo build --release
 cargo fmt
 cargo test
+make install-hooks
 ```
+
+`make install-hooks` configures git to use repo-managed hooks in `.githooks/`.
+
+## Git hooks
+
+Install once per clone:
+
+```bash
+make install-hooks
+```
+
+Installed hooks:
+
+- `pre-commit` runs `cargo fmt --all -- --check`
+- `pre-push` runs `cargo fmt --all -- --check` and `cargo test --locked`
+
+Manual equivalent commands:
+
+```bash
+cargo fmt --all -- --check
+cargo test --locked
+```
+
+If formatting or tests fail, `git push` is blocked.
+GitHub CI enforces the same checks on pull requests and pushes to `main`.
 
 ## CI and Releases
 
