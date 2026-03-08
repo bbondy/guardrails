@@ -144,8 +144,8 @@ make all-platforms
 4. It forwards checker-provided filtered output.
 5. If checker filtering fails, it falls back to a local minimal filter.
 6. Local fallback filtering sanitizes suspicious text; when fallback input is JSON, it sanitizes JSON string fields and keeps valid JSON.
-7. When filtering is applied, it prints `<filtered/>` to stderr (customizable with `--filter-token`) and exits `42`.
-8. If no filtering is applied, it returns the wrapped command exit status (or `--exit-code` in stdin mode).
+7. It exits `42` when prompt injection/instruction redirection is detected.
+8. Otherwise, it returns the wrapped command exit status (or `--exit-code` in stdin mode), even if trusted context caused benign output rewrites.
 
 ## Commands
 
@@ -176,9 +176,6 @@ guardrails filter --checker codex -- gh issue list
 
 # Filter piped stdin and pass through unchanged output with --exit-code when no filtering is needed
 cat output.txt | guardrails filter --checker claude --exit-code 0
-
-# Use a custom filter marker token
-cat output.txt | guardrails filter --checker claude --filter-token "[redacted]"
 
 # Override executable path and pass provider-specific arguments
 guardrails --checker codex --checker-cmd /usr/local/bin/codex --checker-arg exec --checker-arg --json --checker-arg - -- ls -la
@@ -231,7 +228,7 @@ Expected result: safe text is printed and exit code is `0`.
 
 Notes:
 - `43` applies to `check` mode.
-- In `filter` mode, guardrails returns `42` when filtering is applied; otherwise it returns the wrapped command exit code (or `--exit-code` for stdin mode).
+- In `filter` mode, guardrails returns `42` only when prompt injection/instruction redirection is detected.
 - `--pty` requires a wrapped command.
 - In `--pty` mode, wrapped `stdout`/`stderr` are captured as one merged stream.
 
@@ -248,7 +245,7 @@ Default checker tool commands:
 
 Use `--checker-cmd` to override the executable path and repeated `--checker-arg` for tool-specific args. When `--checker-arg` is used, `guardrails` writes the prompt to checker stdin instead of appending prompt arguments automatically.
 
-Use `--checker-context` (repeatable) for extra trusted context and `--checker-permission` (repeatable) for permission hints. These are added to the checker payload in addition to the built-in system instructions.
+Use `--checker-context` (repeatable) for extra trusted context in `filter` mode and `--checker-permission` (repeatable) for permission hints. These are added to the checker payload in addition to the built-in system instructions.
 Detection scope is `output.stdout`/`output.stderr`; metadata fields like `context` and `permissions` are not treated as injection content.
 
 `guardrails` writes a prompt to the checker that includes this payload JSON:
