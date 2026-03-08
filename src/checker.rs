@@ -113,7 +113,9 @@ fn run_checker_prompt(
                 args.push(prompt.to_string());
             }
             CheckerTool::Agent => {
-                // Cursor Agent non-interactive mode.
+                // Cursor Agent non-interactive mode, trusting the current directory
+                // so checker invocations do not block on interactive trust prompts.
+                args.push("-f".to_string());
                 args.push("-p".to_string());
                 args.push(prompt.to_string());
             }

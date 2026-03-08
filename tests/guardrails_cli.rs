@@ -723,7 +723,7 @@ fn gemini_checker_uses_headless_prompt_arg_by_default() {
 #[test]
 fn agent_checker_uses_headless_print_arg_by_default() {
     let checker = write_checker_script(
-        "#!/usr/bin/env sh\nif [ \"$1\" = \"-p\" ] && [ -n \"$2\" ] && [ -z \"${3:-}\" ]; then\n  printf '{\"verdict\":\"safe\"}\\n'\nelse\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"bad-agent-args\"}\\n'\nfi\n",
+        "#!/usr/bin/env sh\nif [ \"$1\" = \"-f\" ] && [ \"$2\" = \"-p\" ] && [ -n \"$3\" ] && [ -z \"${4:-}\" ]; then\n  printf '{\"verdict\":\"safe\"}\\n'\nelse\n  printf '{\"verdict\":\"unsafe\",\"reason\":\"bad-agent-args\"}\\n'\nfi\n",
     );
 
     let output = run_guardrails(

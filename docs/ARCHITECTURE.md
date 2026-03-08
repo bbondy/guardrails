@@ -67,7 +67,7 @@ Default invocation when no `--checker-arg` is provided:
 - `codex exec "<prompt>"`
 - `claude -p "<prompt>"`
 - `gemini -p "<prompt>"`
-- `agent -p "<prompt>"` (fallback executable name: `cursor-agent`)
+- `agent -f -p "<prompt>"` (fallback executable name: `cursor-agent`)
 
 If `--checker-arg` is provided:
 
