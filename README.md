@@ -6,6 +6,8 @@
 
 A native Rust CLI that wraps another CLI, buffers `stdout` and `stderr`, and either blocks unsafe output (`check` mode) or minimally filters unsafe content (`filter` mode).
 
+Developer and release workflows are documented in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
 Detailed implementation guide: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## Install
@@ -27,8 +29,6 @@ Optional install directory:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bbondy/guardrails/main/install.sh | INSTALL_DIR="$HOME/.local/bin" sh
 ```
-
-Developer and release workflows are documented in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## CLI help
 
@@ -68,8 +68,6 @@ Options:
   -V, --version
           Print version
 ```
-
-`guardrails filter --help` currently prints the same options.
 
 ## How it works (`check` mode)
 
