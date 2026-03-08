@@ -35,10 +35,6 @@ pub struct Cli {
     #[arg(long, default_value_t = 0)]
     pub exit_code: i32,
 
-    /// Marker printed to stderr when filtering is applied in filter mode
-    #[arg(long, default_value = "<filtered/>")]
-    pub filter_token: String,
-
     /// Timeout (milliseconds) for checker tool execution
     #[arg(long)]
     pub checker_timeout_ms: Option<u64>,

@@ -30,11 +30,15 @@ pub fn run(mode: Mode, cli: Cli) {
         command,
         command_name,
         exit_code,
-        filter_token,
         checker_timeout_ms,
         max_output_bytes,
         pty,
     } = cli;
+
+    if matches!(mode, Mode::Check) && !checker_context.is_empty() {
+        eprintln!("error: --checker-context is only supported in filter mode");
+        std::process::exit(2);
+    }
 
     if command.is_empty() {
         cmd_stdin(
@@ -46,7 +50,6 @@ pub fn run(mode: Mode, cli: Cli) {
             checker_permission,
             command_name,
             exit_code,
-            filter_token,
             checker_timeout_ms,
             max_output_bytes,
         );
@@ -58,7 +61,6 @@ pub fn run(mode: Mode, cli: Cli) {
             checker_arg,
             checker_context,
             checker_permission,
-            filter_token,
             checker_timeout_ms,
             max_output_bytes,
             pty,
@@ -74,7 +76,6 @@ fn cmd_wrapped(
     checker_arg: Vec<String>,
     checker_context: Vec<String>,
     checker_permission: Vec<String>,
-    filter_token: String,
     checker_timeout_ms: Option<u64>,
     max_output_bytes: Option<usize>,
     pty: bool,
@@ -143,13 +144,10 @@ fn cmd_wrapped(
                 &stderr_text,
             ) {
                 Ok(filtered) => {
-                    let filtered_applied = filtered.reason.is_some()
-                        || filtered.stdout != stdout_text
-                        || filtered.stderr != stderr_text;
                     write_all(io::stdout(), filtered.stdout.as_bytes());
                     write_all(io::stderr(), filtered.stderr.as_bytes());
-                    if filtered_applied {
-                        eprintln!("{filter_token}");
+                    let injection_detected = filtered.detected_prompt_injection.unwrap_or(false);
+                    if injection_detected {
                         std::process::exit(EXIT_PROMPT_INJECTION);
                     }
                 }
@@ -163,7 +161,6 @@ fn cmd_wrapped(
                     write_all(io::stdout(), sanitized_stdout.as_bytes());
                     write_all(io::stderr(), sanitized_stderr.as_bytes());
                     if filtered_applied {
-                        eprintln!("{filter_token}");
                         std::process::exit(EXIT_PROMPT_INJECTION);
                     }
                 }
@@ -182,7 +179,6 @@ fn cmd_stdin(
     checker_permission: Vec<String>,
     command_name: String,
     exit_code: i32,
-    filter_token: String,
     checker_timeout_ms: Option<u64>,
     max_output_bytes: Option<usize>,
 ) {
@@ -241,11 +237,9 @@ fn cmd_stdin(
                 "",
             ) {
                 Ok(filtered) => {
-                    let filtered_applied =
-                        filtered.reason.is_some() || filtered.stdout != original_stdout;
                     write_all(io::stdout(), filtered.stdout.as_bytes());
-                    if filtered_applied {
-                        eprintln!("{filter_token}");
+                    let injection_detected = filtered.detected_prompt_injection.unwrap_or(false);
+                    if injection_detected {
                         std::process::exit(EXIT_PROMPT_INJECTION);
                     }
                 }
@@ -257,7 +251,6 @@ fn cmd_stdin(
                     let filtered_applied = sanitized_stdout != original_stdout;
                     write_all(io::stdout(), sanitized_stdout.as_bytes());
                     if filtered_applied {
-                        eprintln!("{filter_token}");
                         std::process::exit(EXIT_PROMPT_INJECTION);
                     }
                 }

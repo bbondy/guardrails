@@ -2,7 +2,7 @@
 pub struct FilteredOutput {
     pub stdout: String,
     pub stderr: String,
-    pub reason: Option<String>,
+    pub detected_prompt_injection: Option<bool>,
 }
 
 pub fn choose_filtered_text(original: &str, candidate: &str) -> String {
