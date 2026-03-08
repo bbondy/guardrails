@@ -183,6 +183,9 @@ guardrails --checker codex -- gh issue list
 # Wrap a GH command with guaranteed output from this repo
 guardrails --checker codex -- gh release list --repo bbondy/guardrails --limit 5
 
+# Same release command with JSON output
+guardrails --checker codex -- gh release list --repo bbondy/guardrails --limit 5 --json tagName,name,isLatest,publishedAt
+
 # Use Gemini as checker
 guardrails --checker gemini -- gh issue list
 
