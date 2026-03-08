@@ -127,5 +127,4 @@ mod tests {
         let clamped = clamp_output_for_checker(input, Some(4));
         assert_eq!(clamped, "abcd\n[TRUNCATED 2 BYTES]");
     }
-
 }

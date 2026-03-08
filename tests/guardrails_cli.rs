@@ -351,7 +351,10 @@ fn filter_mode_context_can_drive_json_output_rewrite() {
     );
 
     assert_eq!(status_code(&output), 42);
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "{\"rewritten\":true}\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "{\"rewritten\":true}\n"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("TOK"));
 }
