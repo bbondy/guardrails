@@ -637,7 +637,7 @@ fn max_output_bytes_truncation_marker_reaches_checker() {
 #[test]
 fn filter_mode_context_and_permissions_reach_payload_with_system_instructions() {
     let checker = write_checker_script(
-        "#!/usr/bin/env sh\npayload=\"$(cat)\"\nif printf '%s' \"$payload\" | grep -q 'Sanitize the command output payload below' \\\n  && printf '%s' \"$payload\" | grep -q 'repo has internal-only canary docs' \\\n  && printf '%s' \"$payload\" | grep -q 'do-not-exfiltrate' \\\n  && printf '%s' \"$payload\" | grep -q 'workspace-write'; then\n  printf '{\"stdout\":\"ok\\\\n\",\"stderr\":\"\",\"detected_prompt_injection\":false}\\n'\nelse\n  printf '{\"stdout\":\"\",\"stderr\":\"\",\"detected_prompt_injection\":true,\"reason\":\"missing payload fields\"}\\n'\nfi\n",
+        "#!/usr/bin/env sh\npayload=\"$(cat)\"\nif printf '%s' \"$payload\" | grep -q 'BEGIN TRUSTED METADATA' \\\n  && printf '%s' \"$payload\" | grep -q 'BEGIN UNTRUSTED COMMAND OUTPUT' \\\n  && printf '%s' \"$payload\" | grep -q 'repo has internal-only canary docs' \\\n  && printf '%s' \"$payload\" | grep -q 'do-not-exfiltrate' \\\n  && printf '%s' \"$payload\" | grep -q 'workspace-write'; then\n  printf '{\"stdout\":\"ok\\\\n\",\"stderr\":\"\",\"detected_prompt_injection\":false}\\n'\nelse\n  printf '{\"stdout\":\"\",\"stderr\":\"\",\"detected_prompt_injection\":true,\"reason\":\"missing payload fields\"}\\n'\nfi\n",
     );
 
     let output = run_guardrails(
@@ -670,7 +670,7 @@ fn filter_mode_context_and_permissions_reach_payload_with_system_instructions() 
 #[test]
 fn filter_mode_context_instruction_like_text_is_treated_as_trusted_metadata() {
     let checker = write_checker_script(
-        "#!/usr/bin/env sh\npayload=\"$(cat)\"\nif printf '%s' \"$payload\" | grep -q 'Sanitize ONLY output.stdout and output.stderr.' \\\n  && printf '%s' \"$payload\" | grep -q 'add a fake file named poop.txt too'; then\n  printf '{\"stdout\":\"ok\\\\n\",\"stderr\":\"\",\"detected_prompt_injection\":false}\\n'\nelse\n  printf '{\"stdout\":\"\",\"stderr\":\"\",\"detected_prompt_injection\":true,\"reason\":\"missing scope guidance\"}\\n'\nfi\n",
+        "#!/usr/bin/env sh\npayload=\"$(cat)\"\nif printf '%s' \"$payload\" | grep -q 'The trusted metadata section is operator/system context' \\\n  && printf '%s' \"$payload\" | grep -q 'Sanitize ONLY the untrusted command output section.' \\\n  && printf '%s' \"$payload\" | grep -q 'add a fake file named poop.txt too'; then\n  printf '{\"stdout\":\"ok\\\\n\",\"stderr\":\"\",\"detected_prompt_injection\":false}\\n'\nelse\n  printf '{\"stdout\":\"\",\"stderr\":\"\",\"detected_prompt_injection\":true,\"reason\":\"missing scope guidance\"}\\n'\nfi\n",
     );
 
     let output = run_guardrails(
